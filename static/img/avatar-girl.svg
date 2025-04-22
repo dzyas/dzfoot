@@ -1,0 +1,42 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Face shape -->
+  <circle cx="100" cy="100" r="90" fill="#f0d1b3" />
+  
+  <!-- Hijab / Headscarf -->
+  <path d="M 30 120 
+           C 20 80, 30 40, 100 40 
+           C 170 40, 180 80, 170 120
+           C 160 155, 130 175, 100 175
+           C 70 175, 40 155, 30 120 Z" 
+        fill="#c39d7e" />
+  
+  <!-- Face features - Eyes -->
+  <ellipse cx="75" cy="95" rx="8" ry="6" fill="#55372E" />
+  <ellipse cx="125" cy="95" rx="8" ry="6" fill="#55372E" />
+  
+  <!-- Eyebrows -->
+  <path d="M 65 85 C 75 80, 85 80, 90 85" stroke="#55372E" stroke-width="2" fill="none" />
+  <path d="M 135 85 C 125 80, 115 80, 110 85" stroke="#55372E" stroke-width="2" fill="none" />
+  
+  <!-- Nose -->
+  <path d="M 100 95 L 95 110 L 105 110 Z" fill="#e6c9af" stroke="#e6c9af" stroke-width="0.5" />
+  
+  <!-- Lips -->
+  <path d="M 85 125 C 90 130, 110 130, 115 125" stroke="#b66659" stroke-width="3" fill="none" />
+  
+  <!-- Headscarf details -->
+  <path d="M 30 120 
+           C 50 120, 70 125, 100 125
+           C 130 125, 150 120, 170 120" 
+        stroke="#b3906a" stroke-width="4" fill="none" />
+  
+  <!-- Decorative accent on headscarf -->
+  <path d="M 100 40 
+           C 105 45, 110 45, 115 40" 
+        stroke="#e6c9af" stroke-width="3" fill="none" />
+  
+  <!-- Small decorative pattern -->
+  <circle cx="150" cy="80" r="5" fill="#e6c9af" opacity="0.7" />
+  <circle cx="140" cy="65" r="3" fill="#e6c9af" opacity="0.7" />
+  <circle cx="160" cy="65" r="3" fill="#e6c9af" opacity="0.7" />
+</svg>

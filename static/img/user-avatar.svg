@@ -1,0 +1,12 @@
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="50" cy="50" r="48" fill="#4a7aff" />
+  
+  <!-- User Silhouette -->
+  <path d="M50 55c-13.25 0-25 5.75-25 18v7h50v-7c0-12.25-11.75-18-25-18z" fill="#ffffff" />
+  <circle cx="50" cy="36" r="16" fill="#ffffff" />
+  
+  <!-- Decorative Pattern -->
+  <path d="M50 10c22.08 0 40 17.92 40 40S72.08 90 50 90 10 72.08 10 50 27.92 10 50 10m0-5C25.15 5 5 25.15 5 50s20.15 45 45 45 45-20.15 45-45S74.85 5 50 5z" 
+        fill="#3a6ae8" opacity="0.7" />
+</svg>
