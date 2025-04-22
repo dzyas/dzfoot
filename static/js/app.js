@@ -1,948 +1,1119 @@
-// Yasmin Chat Application - Main JavaScript File
+// Ensure the DOM is fully loaded before running the script
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM Elements
+    // --- DOM Elements ---
     const settingsSidebar = document.getElementById('settings-sidebar');
     const toggleSidebarButton = document.getElementById('toggle-sidebar');
-    const closeSidebarButton = document.getElementById('close-sidebar');
-    const sidebarOverlay = document.getElementById('sidebar-overlay');
-    const mobileMenuButton = document.getElementById('mobile-menu-button');
+    const mobileMenuButton = document.getElementById('mobile-menu');
+    const mobileSettingsButton = document.getElementById('mobile-settings');
     const newConversationButton = document.getElementById('new-conversation');
     const conversationsList = document.getElementById('conversations-list');
     const messagesContainer = document.getElementById('messages');
     const messageInput = document.getElementById('message-input');
     const sendButton = document.getElementById('send-button');
-    const micButton = document.getElementById('mic-button');
-    const likeButton = document.getElementById('like-button');
-    const dislikeButton = document.getElementById('dislike-button');
-    const mobileRecordButton = document.getElementById('mobile-record-button');
     const modelSelect = document.getElementById('model-select');
     const temperatureSlider = document.getElementById('temperature-slider');
     const temperatureValueSpan = document.getElementById('temperature-value');
     const maxTokensInput = document.getElementById('max-tokens-input');
     const darkModeToggle = document.getElementById('dark-mode-toggle');
-    const ttsToggle = document.getElementById('tts-toggle');
     const offlineIndicator = document.getElementById('offline-indicator');
     const confirmModal = document.getElementById('confirm-modal');
     const confirmMessage = document.getElementById('confirm-message');
     const confirmOkButton = document.getElementById('confirm-ok');
     const confirmCancelButton = document.getElementById('confirm-cancel');
+    const ttsToggle = document.getElementById('tts-toggle');
+    const micButton = document.getElementById('mic-button');
 
-    // State Variables
+    // --- State Variables ---
     let currentConversationId = null;
-    let messages = [];
-    let isTyping = false;
-    let confirmationCallback = null;
-    let lastMessageTimestamp = null;
-    let isRecording = false;
-    let recognition = null;
-    let speakingUtterance = null;
-    let availableVoices = [];
+    let messages = []; // Stores current conversation messages {role: 'user'/'assistant', content: '...'}
+    let isTyping = false; // To prevent multiple requests or show typing indicator
+    let confirmationCallback = null; // Function to call after modal confirmation
+    const WELCOME_MESSAGE_CONTENT = "السلام عليكم! أنا ياسمين، مساعدتك الرقمية بالعربية. كيف يمكنني مساعدتك اليوم؟";
 
-    // Constants
-    const WELCOME_MESSAGE = {
-        role: 'assistant',
-        content: 'مرحباً، أنا ياسمين مساعدتك الذكية. كيف يمكنني مساعدتك اليوم؟'
-    };
-    const DEFAULT_MODEL = 'mistral-7b-instruct';
-    const DEFAULT_TEMPERATURE = 0.7;
-    const DEFAULT_MAX_TOKENS = 512;
-    const OFFLINE_MESSAGE = 'أعتذر، لا يمكنني معالجة طلبك الآن. يبدو أن هناك مشكلة في الاتصال بالإنترنت.';
+    // --- New: Frontend Offline Message ---
+    const FRONTEND_OFFLINE_MESSAGE = "أعتذر، لا يوجد اتصال بالإنترنت حاليًا. لا يمكنني معالجة طلبك الآن.";
 
-    // Predefined responses for specific queries
+    // --- New: Predefined Responses (Canned Responses) ---
     const PREDEFINED_RESPONSES = {
-        'من صنعك': 'تم تطويري بواسطة فريق من المهندسين المختصين في الذكاء الاصطناعي واللغة العربية.',
-        'من انت': 'أنا ياسمين، مساعدة ذكية تعمل بتقنية الذكاء الاصطناعي ومصممة خصيصًا للتواصل باللغة العربية.',
+        "من صنعك": "أنا نموذج لغوي كبير، تم تطويري بواسطة شركة ياسمين للتطوير والبحث في الذكاء الاصطناعي.",
+        "من انت": "أنا نموذج لغوي كبير، تم تطويري بواسطة شركة ياسمين للتطوير والبحث في الذكاء الاصطناعي.",
+        "مين عملك": "أنا نموذج لغوي كبير، تم تطويري بواسطة شركة ياسمين للتطوير والبحث في الذكاء الاصطناعي.",
+        "مين انت": "أنا نموذج لغوي كبير، تم تطويري بواسطة شركة ياسمين للتطوير والبحث في الذكاء الاصطناعي.",
+        "من بناك": "أنا نموذج لغوي كبير، تم تطويري بواسطة شركة ياسمين للتطوير والبحث في الذكاء الاصطناعي.",
+        // Add other specific phrases if needed
     };
+     // Helper function to check for predefined responses
+     function checkPredefinedResponse(userMessage) {
+         // Basic cleaning: lowercase, remove common punctuation, trim
+         const cleanedMessage = userMessage.toLowerCase().replace(/[?؟!,.\s]+/g, ' ').trim();
+         // Check if the cleaned message *starts with* any of the keys
+         // Using startsWith allows matching "من صنعك يا ياسمين؟"
+         for (const key in PREDEFINED_RESPONSES) {
+              if (cleanedMessage.startsWith(key.toLowerCase() + ' ')) { // Check for word boundary
+                  return PREDEFINED_RESPONSES[key];
+              }
+               if (cleanedMessage === key.toLowerCase()) { // Exact match
+                  return PREDEFINED_RESPONSES[key];
+               }
+         }
+         return null; // No predefined response found
+     }
 
-    // Initialize Application
-    initApp();
 
-    // Main Initialization Function
-    function initApp() {
-        loadSettings();
-        setupEventListeners();
-        initSpeechRecognition();
-        initSpeechSynthesis();
-        checkConnectionStatus();
-        fetchConversations();
-        
-        // Display welcome message if no conversation is loaded
-        if (!currentConversationId) {
-            displayWelcomeMessage();
-        }
-    }
+    // --- Speech Recognition (STT) ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let isRecording = false;
 
-    // Load User Settings from localStorage
-    function loadSettings() {
-        // Load dark mode setting
-        const darkMode = localStorage.getItem('darkMode') === 'true';
-        darkModeToggle.checked = darkMode;
-        if (darkMode) {
-            document.body.classList.add('dark-mode');
-        }
-        
-        // Load TTS setting
-        const ttsEnabled = localStorage.getItem('ttsEnabled') === 'true';
-        ttsToggle.checked = ttsEnabled;
-        
-        // Load model preference
-        const savedModel = localStorage.getItem('preferredModel') || DEFAULT_MODEL;
-        
-        // Populate model select options
-        const models = [
-            { id: 'mistral-7b-instruct', name: 'ميسترال 7B' },
-            { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
-            { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
-            { id: 'llama3-70b', name: 'Llama3 70B' },
-            { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' }
-        ];
-        
-        modelSelect.innerHTML = '';
-        models.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.id;
-            option.textContent = model.name;
-            modelSelect.appendChild(option);
-        });
-        
-        modelSelect.value = savedModel;
-        
-        // Load temperature and max tokens
-        const savedTemperature = parseFloat(localStorage.getItem('temperature')) || DEFAULT_TEMPERATURE;
-        temperatureSlider.value = savedTemperature;
-        temperatureValueSpan.textContent = savedTemperature;
-        
-        const savedMaxTokens = parseInt(localStorage.getItem('maxTokens')) || DEFAULT_MAX_TOKENS;
-        maxTokensInput.value = savedMaxTokens;
-    }
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.lang = 'ar-SA'; // Set language to Arabic (Saudi Arabia). Adjust as needed (e.g., 'ar-EG' for Egypt)
+        recognition.continuous = false; // Capture a single utterance
+        recognition.interimResults = true; // Get results while speaking
 
-    // Set up all event listeners
-    function setupEventListeners() {
-        // Sidebar toggle events
-        if (toggleSidebarButton) {
-            toggleSidebarButton.addEventListener('click', toggleSidebar);
-        }
-        
-        if (closeSidebarButton) {
-            closeSidebarButton.addEventListener('click', closeSidebar);
-        }
-        
-        if (mobileMenuButton) {
-            mobileMenuButton.addEventListener('click', openSidebar);
-        }
-        
-        if (sidebarOverlay) {
-            sidebarOverlay.addEventListener('click', closeSidebar);
-        }
-        
-        // New conversation button
-        if (newConversationButton) {
-            newConversationButton.addEventListener('click', createNewConversation);
-        }
-        
-        // Send message events
-        if (sendButton) {
-            sendButton.addEventListener('click', sendMessage);
-        }
-        
-        if (messageInput) {
-            messageInput.addEventListener('keydown', handleInputKeydown);
-            // Auto-resize textarea as user types
-            messageInput.addEventListener('input', adjustInputHeight);
-        }
-        
-        // Microphone button
-        if (micButton) {
-            micButton.addEventListener('click', toggleSpeechRecognition);
-        }
-        
-        if (mobileRecordButton) {
-            mobileRecordButton.addEventListener('click', toggleSpeechRecognition);
-        }
-        
-        // Feedback buttons
-        if (likeButton) {
-            likeButton.addEventListener('click', () => {
-                likeButton.classList.toggle('active');
-                if (likeButton.classList.contains('active')) {
-                    dislikeButton.classList.remove('active');
+        recognition.onstart = () => {
+            console.log('Speech recognition started');
+            isRecording = true;
+            micButton.classList.add('recording');
+            micButton.title = 'إيقاف التسجيل الصوتي';
+            // Optionally clear input or show indicator
+            // messageInput.value = ''; // Clear input on start? Or append? Let's append for now.
+            messageInput.placeholder = 'استمع... تحدث الآن...';
+        };
+
+        recognition.onresult = (event) => {
+            console.log('Speech recognition result:', event);
+            let interimTranscript = '';
+            let finalTranscript = '';
+
+            // Process all results
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
                 }
-            });
-        }
-        
-        if (dislikeButton) {
-            dislikeButton.addEventListener('click', () => {
-                dislikeButton.classList.toggle('active');
-                if (dislikeButton.classList.contains('active')) {
-                    likeButton.classList.remove('active');
-                }
-            });
-        }
-        
-        // Settings change events
-        if (modelSelect) {
-            modelSelect.addEventListener('change', saveModelPreference);
-        }
-        
-        if (temperatureSlider) {
-            temperatureSlider.addEventListener('input', updateTemperatureValue);
-        }
-        
-        if (maxTokensInput) {
-            maxTokensInput.addEventListener('change', saveMaxTokens);
-        }
-        
-        if (darkModeToggle) {
-            darkModeToggle.addEventListener('change', toggleDarkMode);
-        }
-        
-        if (ttsToggle) {
-            ttsToggle.addEventListener('change', saveTextToSpeechPreference);
-        }
-        
-        // Modal buttons
-        if (confirmOkButton) {
-            confirmOkButton.addEventListener('click', handleConfirmation);
-        }
-        
-        if (confirmCancelButton) {
-            confirmCancelButton.addEventListener('click', closeConfirmModal);
-        }
-        
-        // Suggestion chips
-        const suggestionChips = document.querySelectorAll('.suggestion-chip');
-        suggestionChips.forEach(chip => {
-            chip.addEventListener('click', () => {
-                if (messageInput) {
-                    messageInput.value = chip.textContent.trim();
-                    sendMessage();
-                }
-            });
-        });
-        
-        // Clear chat button
-        const clearChatButton = document.querySelector('.clear-chat-button');
-        if (clearChatButton) {
-            clearChatButton.addEventListener('click', () => {
-                showConfirmModal('هل أنت متأكد من مسح المحادثة؟', () => {
-                    messagesContainer.innerHTML = '';
-                    currentConversationId = null;
-                    messages = [];
-                    displayWelcomeMessage();
-                });
-            });
-        }
-        
-        // Online/Offline detection
-        window.addEventListener('online', updateConnectionStatus);
-        window.addEventListener('offline', updateConnectionStatus);
-        
-        // Window resize to adjust UI
-        window.addEventListener('resize', adjustUIForScreenSize);
-    }
-
-    // Initialize Speech Recognition - will add full functionality later
-    function initSpeechRecognition() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        
-        if (SpeechRecognition) {
-            console.log('Speech Recognition API is supported');
-            recognition = new SpeechRecognition();
-            recognition.lang = 'ar-SA'; // Set language to Arabic
-        } else {
-            console.warn('Speech Recognition API not supported in this browser');
-        }
-    }
-
-    // Placeholder for speech recognition toggle - will implement fully later
-    function toggleSpeechRecognition() {
-        console.log('Speech recognition toggle clicked');
-    }
-
-    // Initialize Speech Synthesis
-    function initSpeechSynthesis() {
-        if (window.speechSynthesis) {
-            // Load available voices
-            const loadVoices = () => {
-                availableVoices = window.speechSynthesis.getVoices();
-                console.log(`${availableVoices.length} voices loaded`);
-            };
-            
-            if (window.speechSynthesis.onvoiceschanged !== undefined) {
-                window.speechSynthesis.onvoiceschanged = loadVoices;
             }
-            
-            loadVoices();
-            
-            // Try to load voices again after a delay if needed
-            if (availableVoices.length === 0) {
-                setTimeout(loadVoices, 500);
+
+            // Append final transcript to the input
+            if (finalTranscript) {
+                 // Append a space if input already has text and doesn't end with space/newline
+                 if (messageInput.value && !messageInput.value.match(/[\s\n]$/)) {
+                    messageInput.value += ' ';
+                 }
+                messageInput.value += finalTranscript;
+            } else {
+                 // Optionally show interim results
+                 // messageInput.placeholder = `...${interimTranscript}...`; // Indicate listening - might be distracting
             }
-        } else {
-            console.warn('Speech Synthesis API not supported in this browser');
+
+             // Keep input field focused and adjust height
+             messageInput.focus();
+             adjustInputHeight();
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            isRecording = false;
+            micButton.classList.remove('recording');
+            micButton.title = 'إدخال صوتي';
+             messageInput.placeholder = 'اكتب رسالتك هنا...'; // Reset placeholder
+             // Provide more specific feedback based on error type
+             let errorMessage = 'حدث خطأ في التعرف على الصوت.';
+             if (event.error === 'not-allowed') {
+                  errorMessage = 'تم رفض الوصول إلى الميكروفون. يرجى السماح للموقع بالوصول.';
+             } else if (event.error === 'no-speech') {
+                  errorMessage = 'لم يتم الكشف عن صوت. يرجى التحدث بوضوح.';
+             } else if (event.error === 'audio-capture') {
+                  errorMessage = 'فشل التقاط الصوت. تأكد من اتصال الميكروفون.';
+             } else if (event.error === 'language-not-supported') {
+                  errorMessage = 'اللغة العربية غير مدعومة في متصفحك لهذا الإدخال الصوتي.';
+             } else if (event.error === 'network') {
+                 errorMessage = 'مشكلة في الشبكة أثناء التعرف على الصوت.';
+             }
+
+
+             alert(`خطأ في التعرف على الصوت: ${errorMessage}`);
+
+        };
+
+        recognition.onend = () => {
+            console.log('Speech recognition ended');
+            isRecording = false;
+            micButton.classList.remove('recording');
+            micButton.title = 'إدخال صوتي';
+             messageInput.placeholder = 'اكتب رسالتك هنا...'; // Reset placeholder
+             // If input is not empty after recording, maybe send automatically? Or let user send?
+             // For now, let the user click send.
+        };
+
+         // Mic button click handler
+        if (micButton) { // Check if micButton exists
+             micButton.addEventListener('click', () => {
+               if (isRecording) {
+                   recognition.stop(); // Stop recording
+               } else {
+                   // Clear input before starting new voice input
+                   // Decide whether to clear or append. Clearing is simpler for single utterances.
+                   // messageInput.value = '';
+                   recognition.start(); // Start recording
+               }
+             });
         }
+
+
+         // Hide mic button if STT is not supported
+    } else {
+        console.warn('Web Speech API (SpeechRecognition) not supported in this browser.');
+        if (micButton) micButton.style.display = 'none'; // Hide the microphone button
     }
 
-    // Speak text using Speech Synthesis
-    function speakText(text) {
-        if (!window.speechSynthesis || !text || !ttsToggle.checked) {
-            return;
-        }
+    // --- Speech Synthesis (TTS) ---
+    const SpeechSynthesis = window.speechSynthesis;
+    let availableVoices = [];
+    let speakingUtterance = null; // Keep track of the current utterance
+    
+    // Force initial loading of voices
+    if (SpeechSynthesis) {
+        SpeechSynthesis.cancel(); // Reset any previous state
         
-        // Stop any currently speaking utterance
-        if (window.speechSynthesis.speaking) {
-            window.speechSynthesis.cancel();
-        }
-        
-        try {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'ar';
-            utterance.rate = 0.9; // Slightly slower for Arabic
-            utterance.pitch = 1.0;
-            utterance.volume = 1.0;
+        // Function to load available voices and prioritize Arabic voices
+        const loadVoices = () => {
+            availableVoices = SpeechSynthesis.getVoices();
             
-            // Find Arabic voice if available
+            // تسجيل الأصوات المتوفرة في سجل الكونسول
+            console.log(`${availableVoices.length} voices loaded`);
+            
+            // تصفية الأصوات العربية المتوفرة
             const arabicVoices = availableVoices.filter(voice => 
                 voice.lang === 'ar' || 
                 voice.lang.startsWith('ar-') ||
+                voice.lang.includes('ar') ||
                 voice.name.toLowerCase().includes('arab')
             );
             
             if (arabicVoices.length > 0) {
-                utterance.voice = arabicVoices[0];
+                console.log(`تم العثور على ${arabicVoices.length} صوت عربي:`, 
+                    arabicVoices.map(v => `${v.name} (${v.lang})`).join(', '));
+            } else {
+                console.warn('لم يتم العثور على أي صوت عربي في المتصفح');
             }
-            
-            speakingUtterance = utterance;
-            window.speechSynthesis.speak(utterance);
-        } catch (error) {
-            console.error('Error speaking text:', error);
+        };
+        
+        // Handle voice loading - browsers handle this differently
+        if (SpeechSynthesis.onvoiceschanged !== undefined) {
+            // Chrome and most browsers need this event
+            SpeechSynthesis.onvoiceschanged = loadVoices;
         }
-    }
-
-    // Check connection status
-    function checkConnectionStatus() {
-        updateConnectionStatus();
-        // Periodically check connection
-        setInterval(updateConnectionStatus, 30000);
-    }
-
-    // Update online/offline indicator
-    function updateConnectionStatus() {
-        if (navigator.onLine) {
-            offlineIndicator.style.display = 'none';
-        } else {
-            offlineIndicator.style.display = 'block';
-        }
-    }
-
-    // Fetch conversations from the server
-    function fetchConversations() {
-        fetch('/api/conversations')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to fetch conversations');
+        
+        // Initial loading attempt
+        loadVoices();
+        
+        // Double-check if voices are already available
+        if (availableVoices.length === 0) {
+            console.log('No voices immediately available. Waiting for voices to load...');
+            // Force a second attempt after a short delay
+            setTimeout(() => {
+                loadVoices();
+                if (availableVoices.length === 0) {
+                    console.warn('Still no voices available after delay. TTS may not work properly.');
                 }
-                return response.json();
-            })
-            .then(data => {
-                renderConversationsList(data.conversations);
-            })
-            .catch(error => {
-                console.error('Error fetching conversations:', error);
-                // If offline, try to load from localStorage
-                const savedConversations = JSON.parse(localStorage.getItem('conversations') || '[]');
-                if (savedConversations.length > 0) {
-                    renderConversationsList(savedConversations);
+            }, 500);
+        }
+
+
+        // Function to speak a given text
+        const speakText = (text) => {
+            if (!SpeechSynthesis || !text) {
+                console.warn('Speech synthesis not available or text is empty.');
+                alert('خدمة التحدث غير متوفرة في هذا المتصفح');
+                return;
+            }
+
+            // Make sure we have the latest voices
+            if (availableVoices.length === 0) {
+                availableVoices = SpeechSynthesis.getVoices();
+            }
+
+            // Stop previous speech if any
+            if (SpeechSynthesis.speaking) {
+                SpeechSynthesis.cancel();
+            }
+
+            try {
+                // Create utterance and set its properties
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ar'; // Force Arabic language
+                utterance.rate = 0.9;  // Slightly slower for Arabic
+                utterance.pitch = 1.0; // Normal pitch
+                utterance.volume = 1.0; // Full volume
+                
+                // استخدام صوت عربي فقط
+                let selectedVoice = null;
+                
+                if (availableVoices.length > 0) {
+                    // البحث عن صوت باللهجة السعودية أولاً
+                    selectedVoice = availableVoices.find(v => v.lang === 'ar-SA');
+                    
+                    // البحث عن أي لهجة عربية
+                    if (!selectedVoice) {
+                        selectedVoice = availableVoices.find(v => 
+                            v.lang === 'ar' || v.lang.startsWith('ar-'));
+                    }
+                    
+                    // البحث عن أي صوت يدعم العربية
+                    if (!selectedVoice) {
+                        selectedVoice = availableVoices.find(v => 
+                            v.lang.includes('ar') || v.name.toLowerCase().includes('arab'));
+                    }
+                    
+                        // في حالة عدم وجود أي صوت عربي، استخدم أي صوت متوفر
+                    if (!selectedVoice) {
+                        // محاولة استخدام أي صوت مناسب آخر (حتى غير عربي)
+                        console.warn('لم يتم العثور على صوت عربي، سيتم استخدام الصوت الافتراضي');
+                        
+                        // اختيار أول صوت متوفر أفضل من عدم وجود صوت
+                        if (availableVoices.length > 0) {
+                            // استخدم الصوت الافتراضي للمتصفح
+                            selectedVoice = availableVoices.find(v => v.default) || availableVoices[0];
+                            console.log('استخدام الصوت الافتراضي:', selectedVoice.name);
+                        } else {
+                            console.warn('لا توجد أي أصوات متوفرة في المتصفح');
+                        }
+                    }
+                    
+                    // Apply the selected voice
+                    if (selectedVoice) {
+                        utterance.voice = selectedVoice;
+                        console.log('Using voice:', selectedVoice.name, `(${selectedVoice.lang})`);
+                    } else {
+                        console.warn('No voice found, using browser default');
+                    }
+                } else {
+                    console.warn('No voices available. Using browser default voice.');
+                }
+                
+                // Setup event handlers
+                utterance.onstart = () => {
+                    speakingUtterance = utterance;
+                    console.log('Speaking started');
+                };
+                
+                utterance.onend = () => {
+                    speakingUtterance = null;
+                    console.log('Speaking ended');
+                };
+                
+                utterance.onerror = (event) => {
+                    console.error('Speech synthesis error:', event.error);
+                    speakingUtterance = null;
+                };
+                
+                // إضافة رسالة للمستخدم لمعرفة حالة التحدث
+                const textToSpeak = text.substring(0, 500) + (text.length > 500 ? '...' : '');
+                console.log('Starting speech with text:', textToSpeak.substring(0, 50) + (textToSpeak.length > 50 ? '...' : ''));
+                
+                // بدء التحدث مع معالجة أخطاء محتملة
+                try {
+                    SpeechSynthesis.speak(utterance);
+                    
+                    // للتأكد من أن التحدث بدأ فعلاً
+                    setTimeout(() => {
+                        if (!SpeechSynthesis.speaking) {
+                            console.warn('التحدث لم يبدأ بشكل صحيح، قد لا يدعم المتصفح هذه الميزة');
+                        }
+                    }, 500);
+                } catch (err) {
+                    console.error('خطأ أثناء التحدث:', err);
+                }
+                
+                return true; // Successfully started speaking
+            } catch (err) {
+                console.error('Error in speech synthesis:', err);
+                alert('حدث خطأ في خدمة التحدث');
+                return false;
+            }
+        };
+
+         // Function to stop speaking
+         const stopSpeaking = () => {
+             if (SpeechSynthesis && SpeechSynthesis.speaking) {
+                 SpeechSynthesis.cancel();
+                 speakingUtterance = null;
+                 console.log('Speaking stopped.');
+             }
+         };
+
+
+        // Add click listener to messagesContainer to handle clicks on speak buttons
+        messagesContainer.addEventListener('click', (event) => {
+            // Check if the clicked element is a speak button or its icon
+            const speakButtonTarget = event.target.closest('.speak-btn');
+            
+            if (!speakButtonTarget) return; // Not a speak button
+            
+            // Visual feedback - change icon briefly
+            const icon = speakButtonTarget.querySelector('i');
+            const originalClass = icon.className;
+            
+            // Find the message bubble containing this button
+            const messageBubble = speakButtonTarget.closest('.message-bubble');
+            if (!messageBubble) return;
+            
+            // Find the text content within the bubble (p tag)
+            const textElement = messageBubble.querySelector('p');
+            if (!textElement || !textElement.textContent) return;
+            
+            // If already speaking, stop it
+            if (speakingUtterance && SpeechSynthesis.speaking) {
+                // Stop speech and reset icon
+                stopSpeaking();
+                icon.className = originalClass;
+            } else {
+                // Start speaking and set active icon
+                try {
+                    // Change icon to show activity
+                    icon.className = 'fas fa-volume-high';
+                    
+                    // Speak the content
+                    const success = speakText(textElement.textContent);
+                    
+                    if (success) {
+                        // Set an interval to check when speech ends and reset icon
+                        let iconCheckInterval = setInterval(() => {
+                            if (!SpeechSynthesis.speaking) {
+                                // Speech ended, reset icon and clear interval
+                                icon.className = originalClass;
+                                clearInterval(iconCheckInterval);
+                            }
+                        }, 500); // Check every half second
+                        
+                        // Also set a maximum timeout (30 seconds) to avoid leaking intervals
+                        setTimeout(() => {
+                            if (iconCheckInterval) {
+                                clearInterval(iconCheckInterval);
+                                icon.className = originalClass;
+                            }
+                        }, 30000);
+                    } else {
+                        // Speech didn't start, reset icon
+                        icon.className = originalClass;
+                    }
+                } catch (err) {
+                    console.error('Error handling speech button:', err);
+                    icon.className = originalClass; // Reset icon on error
+                }
+            }
+        });
+
+        // Load TTS preference from localStorage
+        const storedTtsPreference = localStorage.getItem('ttsEnabled');
+        if (storedTtsPreference === 'true') {
+            ttsToggle.checked = true;
+        }
+
+        // Handle TTS toggle changes
+        ttsToggle.addEventListener('change', () => {
+            localStorage.setItem('ttsEnabled', ttsToggle.checked);
+            // If turning off, stop any current speech
+            if (!ttsToggle.checked && SpeechSynthesis.speaking) {
+                stopSpeaking();
+            }
+        });
+
+    } else {
+        console.warn('Web Speech API (SpeechSynthesis) not supported in this browser.');
+        // Hide TTS toggle if not supported
+        if (ttsToggle) {
+            ttsToggle.parentElement.style.display = 'none';
+        }
+    }
+
+    // --- Initialize Models ---
+    // Common models available on OpenRouter
+    const availableModels = [
+        { value: 'mistralai/mistral-7b-instruct', label: 'Mistral 7B' },
+        { value: 'anthropic/claude-3-haiku', label: 'Claude 3 Haiku' },
+        { value: 'google/gemini-pro', label: 'Gemini Pro' },
+        { value: 'meta-llama/llama-3-8b-instruct', label: 'LLaMA 3 8B' },
+        { value: 'google/gemma-7b-it', label: 'Gemma 7B' },
+        { value: 'openai/gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+        { value: 'anthropic/claude-3-sonnet', label: 'Claude 3 Sonnet' }
+    ];
+
+    // Populate model dropdown
+    modelSelect.innerHTML = ''; // Clear any existing options
+    availableModels.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.value;
+        option.textContent = model.label;
+        modelSelect.appendChild(option);
+    });
+
+    // Load saved model preference from localStorage
+    const savedModel = localStorage.getItem('selectedModel');
+    if (savedModel && availableModels.some(model => model.value === savedModel)) {
+        modelSelect.value = savedModel;
+    }
+
+    // Save model selection to localStorage when changed
+    modelSelect.addEventListener('change', () => {
+        localStorage.setItem('selectedModel', modelSelect.value);
+    });
+
+    // --- Load and Display Conversations ---
+    async function loadConversations() {
+        try {
+            const response = await fetch('/api/conversations');
+            if (!response.ok) {
+                throw new Error('Failed to load conversations');
+            }
+            const conversations = await response.json();
+
+            // Clear the conversations list
+            while (conversationsList.firstChild) {
+                conversationsList.removeChild(conversationsList.firstChild);
+            }
+
+            if (conversations.length === 0) {
+                // No conversations to display
+                const emptyState = document.createElement('div');
+                emptyState.className = 'empty-state';
+                emptyState.textContent = 'لا توجد محادثات سابقة';
+                conversationsList.appendChild(emptyState);
+            } else {
+                // Display each conversation
+                conversations.forEach(conversation => {
+                    const conversationItem = document.createElement('div');
+                    conversationItem.className = 'conversation-item';
+                    if (conversation.id === currentConversationId) {
+                        conversationItem.classList.add('active');
+                    }
+
+                    // Format date
+                    const date = new Date(conversation.updated_at);
+                    const formattedDate = new Intl.DateTimeFormat('ar-SA', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    }).format(date);
+
+                    // Create a span for the title
+                    const titleSpan = document.createElement('span');
+                    titleSpan.textContent = conversation.title;
+                    titleSpan.title = `${conversation.title} - ${formattedDate}`;
+
+                    // Create action buttons container
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'conversation-actions';
+
+                    // Edit title button
+                    const editButton = document.createElement('button');
+                    editButton.className = 'icon-button';
+                    editButton.title = 'تعديل العنوان';
+                    editButton.innerHTML = '<i class="fas fa-edit"></i>';
+                    editButton.onclick = (e) => {
+                        e.stopPropagation(); // Prevent loading the conversation
+                        editConversationTitle(conversation.id, conversation.title);
+                    };
+
+                    // Delete button
+                    const deleteButton = document.createElement('button');
+                    deleteButton.className = 'icon-button';
+                    deleteButton.title = 'حذف المحادثة';
+                    deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                    deleteButton.onclick = (e) => {
+                        e.stopPropagation(); // Prevent loading the conversation
+                        confirmDeleteConversation(conversation.id);
+                    };
+
+                    // Add buttons to actions div
+                    actionsDiv.appendChild(editButton);
+                    actionsDiv.appendChild(deleteButton);
+
+                    // Add title and actions to conversation item
+                    conversationItem.appendChild(titleSpan);
+                    conversationItem.appendChild(actionsDiv);
+
+                    // Set click handler for loading the conversation
+                    conversationItem.addEventListener('click', () => {
+                        loadConversation(conversation.id);
+                    });
+
+                    conversationsList.appendChild(conversationItem);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading conversations:', error);
+            // Show error state
+            const errorState = document.createElement('div');
+            errorState.className = 'empty-state';
+            errorState.textContent = 'فشل تحميل المحادثات';
+            conversationsList.appendChild(errorState);
+        }
+    }
+
+    // --- Load a Single Conversation ---
+    async function loadConversation(conversationId) {
+        try {
+            const response = await fetch(`/api/conversations/${conversationId}`);
+            if (!response.ok) {
+                throw new Error('Failed to load conversation');
+            }
+            const conversation = await response.json();
+
+            // Update UI
+            clearMessages();
+            currentConversationId = conversationId;
+            messages = conversation.messages.map(msg => ({
+                role: msg.role,
+                content: msg.content
+            }));
+
+            // Add messages to UI
+            messages.forEach(msg => {
+                addMessageToUI(msg.role, msg.content);
+            });
+
+            // Update active state in conversation list
+            document.querySelectorAll('.conversation-item').forEach(item => {
+                item.classList.remove('active');
+                const itemTitleSpan = item.querySelector('span');
+                if (itemTitleSpan && itemTitleSpan.textContent === conversation.title) {
+                    item.classList.add('active');
                 }
             });
+
+            // Close sidebar on mobile after selecting a conversation
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
+
+            // Scroll to bottom
+            scrollToBottom();
+
+            // Show regenerate button if there are messages
+            if (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
+                showRegenerateButton();
+            } else {
+                hideRegenerateButton();
+            }
+        } catch (error) {
+            console.error('Error loading conversation:', error);
+            alert('فشل تحميل المحادثة');
+        }
     }
 
-    // Render conversations list
-    function renderConversationsList(conversations) {
-        conversationsList.innerHTML = '';
+    // --- Edit Conversation Title ---
+    function editConversationTitle(conversationId, currentTitle) {
+        const newTitle = prompt('أدخل العنوان الجديد للمحادثة:', currentTitle);
+        if (newTitle !== null && newTitle.trim() !== '') {
+            updateConversationTitle(conversationId, newTitle.trim());
+        }
+    }
+
+    // --- Update Conversation Title (API Call) ---
+    async function updateConversationTitle(conversationId, newTitle) {
+        try {
+            const response = await fetch(`/api/conversations/${conversationId}/title`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ title: newTitle }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to update conversation title');
+            }
+
+            // Reload the conversations list
+            loadConversations();
+        } catch (error) {
+            console.error('Error updating conversation title:', error);
+            alert('فشل تحديث عنوان المحادثة');
+        }
+    }
+
+    // --- Confirm Delete Conversation ---
+    function confirmDeleteConversation(conversationId) {
+        confirmMessage.textContent = 'هل أنت متأكد من أنك تريد حذف هذه المحادثة؟';
+        showConfirmModal(() => {
+            deleteConversation(conversationId);
+        });
+    }
+
+    // --- Delete Conversation (API Call) ---
+    async function deleteConversation(conversationId) {
+        try {
+            const response = await fetch(`/api/conversations/${conversationId}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to delete conversation');
+            }
+
+            // If we deleted the current conversation, clear the UI
+            if (conversationId === currentConversationId) {
+                clearMessages();
+                currentConversationId = null;
+                messages = [];
+                hideRegenerateButton();
+            }
+
+            // Reload the conversations list
+            loadConversations();
+        } catch (error) {
+            console.error('Error deleting conversation:', error);
+            alert('فشل حذف المحادثة');
+        }
+    }
+
+    // --- Clear Messages UI ---
+    function clearMessages() {
+        messagesContainer.innerHTML = '';
+        hideRegenerateButton();
+
+        // Add welcome message
+        addMessageToUI('assistant', WELCOME_MESSAGE_CONTENT);
+    }
+
+    // --- Add Message to UI ---
+    function addMessageToUI(role, content) {
+        const messageBubble = document.createElement('div');
+        messageBubble.className = `message-bubble ${role === 'user' ? 'user-bubble' : 'ai-bubble'} fade-in`;
+
+        const messageContent = document.createElement('p');
+        messageContent.textContent = content;
+        messageBubble.appendChild(messageContent);
+
+        // For AI messages, add copy and TTS buttons
+        if (role === 'assistant') {
+            const messageActions = document.createElement('div');
+            messageActions.className = 'message-actions';
+
+            // Copy button
+            const copyButton = document.createElement('button');
+            copyButton.className = 'copy-btn';
+            copyButton.title = 'نسخ';
+            copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+            copyButton.addEventListener('click', () => {
+                navigator.clipboard.writeText(content)
+                    .then(() => {
+                        // Show success feedback
+                        copyButton.innerHTML = '<i class="fas fa-check"></i>';
+                        setTimeout(() => {
+                            copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                        }, 2000);
+                    })
+                    .catch(err => {
+                        console.error('Failed to copy text:', err);
+                        copyButton.innerHTML = '<i class="fas fa-times"></i>';
+                        setTimeout(() => {
+                            copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                        }, 2000);
+                    });
+            });
+
+            // Speak button
+            const speakButton = document.createElement('button');
+            speakButton.className = 'speak-btn';
+            speakButton.title = 'استماع';
+            speakButton.innerHTML = '<i class="fas fa-volume-up"></i>';
+
+            messageActions.appendChild(copyButton);
+            messageActions.appendChild(speakButton);
+            messageBubble.appendChild(messageActions);
+
+            // If auto-TTS is enabled, speak this message automatically
+            if (ttsToggle && ttsToggle.checked && window.speechSynthesis && typeof speakText === 'function') {
+                setTimeout(() => {
+                    speakText(content);
+                }, 500); // Small delay to ensure UI is updated first
+            }
+        }
+
+        messagesContainer.appendChild(messageBubble);
+        scrollToBottom();
+    }
+
+    // --- Create Regenerate Button ---
+    function createRegenerateButton() {
+        // Check if the button already exists
+        let regenerateButton = document.getElementById('regenerate-button');
         
-        if (conversations.length === 0) {
-            const emptyState = document.createElement('div');
-            emptyState.className = 'empty-state';
-            emptyState.textContent = 'لا توجد محادثات سابقة';
-            conversationsList.appendChild(emptyState);
+        if (!regenerateButton) {
+            regenerateButton = document.createElement('button');
+            regenerateButton.id = 'regenerate-button';
+            regenerateButton.innerHTML = '<i class="fas fa-redo"></i> إعادة توليد الرد';
+            regenerateButton.addEventListener('click', handleRegenerate);
+            
+            // Insert after messages container
+            messagesContainer.after(regenerateButton);
+        }
+        
+        return regenerateButton;
+    }
+
+    // --- Show Regenerate Button ---
+    function showRegenerateButton() {
+        const regenerateButton = createRegenerateButton();
+        regenerateButton.style.display = 'flex';
+    }
+
+    // --- Hide Regenerate Button ---
+    function hideRegenerateButton() {
+        const regenerateButton = document.getElementById('regenerate-button');
+        if (regenerateButton) {
+            regenerateButton.style.display = 'none';
+        }
+    }
+
+    // --- Handle Regenerate Button Click ---
+    async function handleRegenerate() {
+        if (!currentConversationId || isTyping) {
             return;
         }
+
+        isTyping = true;
         
-        // Sort conversations by most recent first
-        conversations.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-        
-        conversations.forEach(conversation => {
-            const conversationItem = document.createElement('div');
-            conversationItem.className = 'conversation-item';
-            if (conversation.id === currentConversationId) {
-                conversationItem.classList.add('active');
+        try {
+            // Remove the last AI message from UI
+            if (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
+                const lastMessage = messagesContainer.lastChild;
+                if (lastMessage) {
+                    messagesContainer.removeChild(lastMessage);
+                }
+                
+                // Also remove from our messages array
+                messages.pop();
             }
-            
-            const title = document.createElement('div');
-            title.className = 'conversation-title';
-            title.textContent = conversation.title;
-            
-            const actions = document.createElement('div');
-            actions.className = 'conversation-actions';
-            
-            const deleteButton = document.createElement('button');
-            deleteButton.className = 'icon-button';
-            deleteButton.title = 'حذف المحادثة';
-            deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
-            deleteButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                showConfirmModal('هل أنت متأكد من حذف هذه المحادثة؟', () => {
-                    deleteConversation(conversation.id);
-                });
+
+            // Add typing indicator
+            addTypingIndicator();
+
+            // Prepare API call parameters
+            const requestBody = {
+                conversation_id: currentConversationId,
+                model: modelSelect.value,
+                temperature: parseFloat(temperatureSlider.value),
+                max_tokens: parseInt(maxTokensInput.value, 10)
+            };
+
+            // Make the API call
+            const response = await fetch('/api/regenerate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody),
             });
+
+            // Remove typing indicator
+            removeTypingIndicator();
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'فشل إعادة توليد الرد');
+            }
+
+            const data = await response.json();
             
-            actions.appendChild(deleteButton);
-            conversationItem.appendChild(title);
-            conversationItem.appendChild(actions);
+            // Add the new AI message to UI and messages array
+            addMessageToUI('assistant', data.content);
+            messages.push({ role: 'assistant', content: data.content });
             
-            conversationItem.addEventListener('click', () => {
-                loadConversation(conversation.id);
-            });
+            // Show regenerate button
+            showRegenerateButton();
             
-            conversationsList.appendChild(conversationItem);
-        });
+        } catch (error) {
+            console.error('Error regenerating response:', error);
+            
+            // Show error in UI
+            addMessageToUI('assistant', `خطأ: ${error.message || 'فشل إعادة توليد الرد'}`);
+            
+        } finally {
+            isTyping = false;
+        }
     }
 
-    // Create a new conversation
-    function createNewConversation() {
-        // Reset current state
-        currentConversationId = null;
-        messages = [];
-        messagesContainer.innerHTML = '';
+    // --- Add Typing Indicator ---
+    function addTypingIndicator() {
+        const typingIndicator = document.createElement('div');
+        typingIndicator.className = 'message-bubble ai-bubble typing-indicator-bubble';
+        typingIndicator.id = 'typing-indicator';
         
-        // Show welcome message
-        displayWelcomeMessage();
+        const indicator = document.createElement('div');
+        indicator.className = 'typing-indicator';
         
-        // Close sidebar on mobile
-        closeSidebar();
+        for (let i = 0; i < 3; i++) {
+            const dot = document.createElement('span');
+            dot.className = 'typing-dot';
+            indicator.appendChild(dot);
+        }
         
-        // Clear the input
-        messageInput.value = '';
-        messageInput.focus();
-    }
-
-    // Load a conversation
-    function loadConversation(conversationId) {
-        fetch(`/api/conversations/${conversationId}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to fetch conversation');
-                }
-                return response.json();
-            })
-            .then(data => {
-                currentConversationId = conversationId;
-                
-                // Update active state in conversation list
-                const conversationItems = conversationsList.querySelectorAll('.conversation-item');
-                conversationItems.forEach(item => {
-                    item.classList.remove('active');
-                    if (item.querySelector('.conversation-title').textContent === data.title) {
-                        item.classList.add('active');
-                    }
-                });
-                
-                // Render messages
-                messages = data.messages;
-                renderMessages(messages);
-                
-                // Close sidebar on mobile
-                closeSidebar();
-            })
-            .catch(error => {
-                console.error('Error loading conversation:', error);
-                showError('حدث خطأ أثناء تحميل المحادثة. يرجى المحاولة مرة أخرى.');
-            });
-    }
-
-    // Delete a conversation
-    function deleteConversation(conversationId) {
-        fetch(`/api/conversations/${conversationId}`, {
-            method: 'DELETE'
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to delete conversation');
-                }
-                
-                // If deleting current conversation, create a new one
-                if (conversationId === currentConversationId) {
-                    createNewConversation();
-                }
-                
-                // Refresh conversations list
-                fetchConversations();
-            })
-            .catch(error => {
-                console.error('Error deleting conversation:', error);
-                showError('حدث خطأ أثناء حذف المحادثة. يرجى المحاولة مرة أخرى.');
-            });
-    }
-
-    // Display welcome message
-    function displayWelcomeMessage() {
-        messages = [WELCOME_MESSAGE];
-        renderMessages(messages);
-    }
-
-    // Render messages in the UI
-    function renderMessages(messagesToRender) {
-        messagesContainer.innerHTML = '';
-        
-        messagesToRender.forEach((message, index) => {
-            const messageElement = createMessageElement(message, index);
-            messagesContainer.appendChild(messageElement);
-        });
-        
-        // Scroll to bottom
+        typingIndicator.appendChild(indicator);
+        messagesContainer.appendChild(typingIndicator);
         scrollToBottom();
     }
 
-    // Create message element
-    function createMessageElement(message, index) {
-        const isUser = message.role === 'user';
-        const bubbleClass = isUser ? 'user-bubble' : 'ai-bubble';
-        
-        const messageElement = document.createElement('div');
-        messageElement.className = `message-bubble ${bubbleClass}`;
-        messageElement.setAttribute('data-index', index);
-        
-        // Avatar
-        const avatar = document.createElement('img');
-        avatar.className = 'message-avatar';
-        avatar.src = isUser 
-            ? '/static/img/user-avatar.svg'
-            : '/static/img/yasmin-avatar.svg';
-        avatar.alt = isUser ? 'أنت' : 'ياسمين';
-        
-        // Content
-        const content = document.createElement('p');
-        content.innerHTML = formatMessageContent(message.content);
-        
-        // Timestamp
-        const timestamp = document.createElement('div');
-        timestamp.className = 'message-timestamp';
-        
-        if (message.created_at) {
-            const date = new Date(message.created_at);
-            timestamp.textContent = formatTime(date);
-        } else {
-            const date = new Date();
-            timestamp.textContent = formatTime(date);
+    // --- Remove Typing Indicator ---
+    function removeTypingIndicator() {
+        const typingIndicator = document.getElementById('typing-indicator');
+        if (typingIndicator) {
+            typingIndicator.remove();
         }
-        
-        // Actions
-        const actions = document.createElement('div');
-        actions.className = 'message-actions';
-        
-        // Copy button
-        const copyButton = document.createElement('button');
-        copyButton.className = 'copy-btn';
-        copyButton.title = 'نسخ النص';
-        copyButton.innerHTML = '<i class="fas fa-copy"></i>';
-        copyButton.addEventListener('click', () => {
-            copyToClipboard(message.content);
-        });
-        
-        actions.appendChild(copyButton);
-        
-        // Extra actions for assistant messages
-        if (!isUser) {
-            // Speak button (if browser supports speech synthesis)
-            if (window.speechSynthesis) {
-                const speakButton = document.createElement('button');
-                speakButton.className = 'speak-btn';
-                speakButton.title = 'استماع إلى الرد';
-                speakButton.innerHTML = '<i class="fas fa-volume-up"></i>';
-                speakButton.addEventListener('click', () => {
-                    speakText(message.content);
-                });
-                actions.appendChild(speakButton);
+    }
+
+    // --- Send Message ---
+    async function sendMessage() {
+        const userMessage = messageInput.value.trim();
+        if (!userMessage || isTyping) {
+            return;
+        }
+
+        // Check network status first
+        if (!navigator.onLine) {
+            console.log("Offline mode detected. Using frontend offline message");
+            // Handle the offline case in the UI directly
+            addMessageToUI('user', userMessage);
+            messages.push({ role: 'user', content: userMessage });
+            
+            // Add offline response
+            addMessageToUI('assistant', FRONTEND_OFFLINE_MESSAGE);
+            messages.push({ role: 'assistant', content: FRONTEND_OFFLINE_MESSAGE });
+            
+            // Clear input field
+            messageInput.value = '';
+            adjustInputHeight();
+            return;
+        }
+
+        // Preliminary check for predefined responses
+        const predefinedResponse = checkPredefinedResponse(userMessage);
+        if (predefinedResponse) {
+            console.log("Using predefined response");
+            
+            // Show user message
+            addMessageToUI('user', userMessage);
+            messages.push({ role: 'user', content: userMessage });
+            
+            // Show predefined response
+            addMessageToUI('assistant', predefinedResponse);
+            messages.push({ role: 'assistant', content: predefinedResponse });
+            
+            // If this is a new conversation, we need to create it
+            if (!currentConversationId) {
+                // We'll create the conversation with the backend on next non-predefined message
+                // This saves API calls for quick predefined responses
+            } else {
+                // For existing conversations, we should add these messages to the server
+                // This is a nice-to-have but not vital, as the conversation exists already
+                // Could implement: sendMessagesToServer(currentConversationId, userMessage, predefinedResponse);
             }
             
-            // Vote buttons
-            const voteButtons = document.createElement('div');
-            voteButtons.className = 'vote-buttons';
+            // Clear input field and adjust
+            messageInput.value = '';
+            adjustInputHeight();
             
-            const likeButton = document.createElement('button');
-            likeButton.className = 'like-btn';
-            likeButton.title = 'أعجبني';
-            likeButton.setAttribute('data-vote-type', 'like');
-            likeButton.innerHTML = '<i class="fas fa-thumbs-up"></i>';
+            // Show regenerate button
+            showRegenerateButton();
             
-            const dislikeButton = document.createElement('button');
-            dislikeButton.className = 'dislike-btn';
-            dislikeButton.title = 'لم يعجبني';
-            dislikeButton.setAttribute('data-vote-type', 'dislike');
-            dislikeButton.innerHTML = '<i class="fas fa-thumbs-down"></i>';
-            
-            voteButtons.appendChild(likeButton);
-            voteButtons.appendChild(dislikeButton);
-            actions.appendChild(voteButtons);
+            return;
         }
-        
-        // Assemble the message
-        messageElement.appendChild(content);
-        messageElement.appendChild(timestamp);
-        messageElement.appendChild(actions);
-        messageElement.appendChild(avatar);
-        
-        return messageElement;
-    }
 
-    // Format message content (handle emojis, links, etc.)
-    function formatMessageContent(content) {
-        if (!content) return '';
+        // Proceed with normal API call
+        isTyping = true;
         
-        // Convert links to clickable anchors
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        content = content.replace(urlRegex, url => {
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
-        });
-        
-        // Convert line breaks to <br>
-        content = content.replace(/\n/g, '<br>');
-        
-        return content;
-    }
-
-    // Format time for messages
-    function formatTime(date) {
-        const hours = date.getHours();
-        const minutes = date.getMinutes();
-        const ampm = hours >= 12 ? 'م' : 'ص';
-        const formattedHours = hours % 12 || 12;
-        const formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
-        
-        return `${formattedHours}:${formattedMinutes} ${ampm}`;
-    }
-
-    // Send a message
-    function sendMessage() {
-        const content = messageInput.value.trim();
-        
-        if (!content || isTyping) return;
-        
-        // Add user message to the UI immediately
-        const userMessage = { role: 'user', content };
-        messages.push(userMessage);
-        
-        const userMessageElement = createMessageElement(userMessage, messages.length - 1);
-        messagesContainer.appendChild(userMessageElement);
-        scrollToBottom();
-        
-        // Reset input
+        // Add user message to UI and clear input
+        addMessageToUI('user', userMessage);
         messageInput.value = '';
         adjustInputHeight();
         
-        // Set typing state
-        isTyping = true;
+        // Add typing indicator
+        addTypingIndicator();
         
-        // Check for predefined responses
-        const predefinedResponse = checkPredefinedResponse(content);
-        if (predefinedResponse) {
-            // Simulate API delay
-            setTimeout(() => {
-                addAssistantResponse(predefinedResponse);
-            }, 500);
-            return;
-        }
+        // Update messages array
+        messages.push({ role: 'user', content: userMessage });
         
-        // Check if offline
-        if (!navigator.onLine) {
-            setTimeout(() => {
-                addAssistantResponse(OFFLINE_MESSAGE);
-            }, 500);
-            return;
-        }
-        
-        // Create typing indicator
-        const typingIndicator = document.createElement('div');
-        typingIndicator.className = 'typing-indicator';
-        typingIndicator.innerHTML = `
-            <div class="dots">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-            <span>ياسمين تكتب...</span>
-        `;
-        messagesContainer.appendChild(typingIndicator);
-        scrollToBottom();
-        
-        // Get model parameters
-        const model = modelSelect.value;
-        const temperature = parseFloat(temperatureSlider.value);
-        const maxTokens = parseInt(maxTokensInput.value);
-        
-        // Prepare data for API
-        const requestData = {
-            messages: messages.map(msg => ({ role: msg.role, content: msg.content })),
-            model,
-            temperature,
-            max_tokens: maxTokens
-        };
-        
-        // If we have a conversation ID, use it
-        const url = currentConversationId 
-            ? `/api/conversations/${currentConversationId}/messages`
-            : '/api/conversations';
-        
-        // Send request to the server
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestData)
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to send message');
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Remove typing indicator
-                const indicator = document.querySelector('.typing-indicator');
-                if (indicator) {
-                    indicator.remove();
-                }
-                
-                if (!currentConversationId && data.conversation_id) {
-                    // New conversation was created
-                    currentConversationId = data.conversation_id;
-                    fetchConversations(); // Refresh the conversations list
-                }
-                
-                // Add assistant response to UI
-                const assistantMessage = { 
-                    role: 'assistant', 
-                    content: data.response,
-                    created_at: new Date().toISOString()
-                };
-                
-                messages.push(assistantMessage);
-                
-                const assistantMessageElement = createMessageElement(
-                    assistantMessage,
-                    messages.length - 1
-                );
-                
-                messagesContainer.appendChild(assistantMessageElement);
-                scrollToBottom();
-                
-                // Reset typing state
-                isTyping = false;
-                
-                // Speak response if TTS is enabled
-                if (ttsToggle.checked) {
-                    speakText(data.response);
-                }
-            })
-            .catch(error => {
-                console.error('Error sending message:', error);
-                
-                // Remove typing indicator
-                const indicator = document.querySelector('.typing-indicator');
-                if (indicator) {
-                    indicator.remove();
-                }
-                
-                // Add error message
-                addAssistantResponse('عذرًا، حدث خطأ أثناء معالجة الرسالة. يرجى المحاولة مرة أخرى.');
-                
-                // Reset typing state
-                isTyping = false;
+        try {
+            // Prepare API call
+            const requestBody = {
+                history: messages,
+                conversation_id: currentConversationId,
+                model: modelSelect.value,
+                temperature: parseFloat(temperatureSlider.value),
+                max_tokens: parseInt(maxTokensInput.value, 10)
+            };
+            
+            // Make API call
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody),
             });
-    }
-
-    // Add assistant response to the UI
-    function addAssistantResponse(content) {
-        const assistantMessage = { 
-            role: 'assistant', 
-            content,
-            created_at: new Date().toISOString()
-        };
-        
-        messages.push(assistantMessage);
-        
-        const assistantMessageElement = createMessageElement(
-            assistantMessage,
-            messages.length - 1
-        );
-        
-        messagesContainer.appendChild(assistantMessageElement);
-        scrollToBottom();
-        
-        // Reset typing state
-        isTyping = false;
-        
-        // Speak response if TTS is enabled
-        if (ttsToggle.checked) {
-            speakText(content);
-        }
-    }
-
-    // Check for predefined responses
-    function checkPredefinedResponse(userMessage) {
-        const cleanedMessage = userMessage.toLowerCase().replace(/[?؟!.,\s]+/g, ' ').trim();
-        
-        for (const key in PREDEFINED_RESPONSES) {
-            if (cleanedMessage === key.toLowerCase() || 
-                cleanedMessage.startsWith(key.toLowerCase() + ' ')) {
-                return PREDEFINED_RESPONSES[key];
+            
+            // Remove typing indicator
+            removeTypingIndicator();
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'فشل إرسال الرسالة');
             }
-        }
-        
-        return null;
-    }
-
-    // Handle input keydown event (Enter to send, Shift+Enter for newline)
-    function handleInputKeydown(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    }
-
-    // Adjust input height based on content
-    function adjustInputHeight() {
-        messageInput.style.height = 'auto';
-        messageInput.style.height = Math.min(messageInput.scrollHeight, 150) + 'px';
-    }
-
-    // Save model preference
-    function saveModelPreference() {
-        localStorage.setItem('preferredModel', modelSelect.value);
-    }
-
-    // Update temperature value display
-    function updateTemperatureValue() {
-        const value = temperatureSlider.value;
-        temperatureValueSpan.textContent = value;
-        localStorage.setItem('temperature', value);
-    }
-
-    // Save max tokens setting
-    function saveMaxTokens() {
-        localStorage.setItem('maxTokens', maxTokensInput.value);
-    }
-
-    // Toggle dark mode
-    function toggleDarkMode() {
-        if (darkModeToggle.checked) {
-            document.body.classList.add('dark-mode');
-            localStorage.setItem('darkMode', 'true');
-        } else {
-            document.body.classList.remove('dark-mode');
-            localStorage.setItem('darkMode', 'false');
+            
+            const data = await response.json();
+            
+            // Update conversation ID for new conversations
+            if (!currentConversationId && data.id) {
+                currentConversationId = data.id;
+                // Refresh conversation list
+                loadConversations();
+            }
+            
+            // Add AI response to UI and messages array
+            addMessageToUI('assistant', data.content);
+            messages.push({ role: 'assistant', content: data.content });
+            
+            // Show regenerate button
+            showRegenerateButton();
+            
+        } catch (error) {
+            console.error('Error sending message:', error);
+            
+            // Remove typing indicator
+            removeTypingIndicator();
+            
+            // Show error in UI
+            addMessageToUI('assistant', `خطأ: ${error.message || 'فشل إرسال الرسالة'}`);
+            
+        } finally {
+            isTyping = false;
         }
     }
 
-    // Save Text-to-Speech preference
-    function saveTextToSpeechPreference() {
-        localStorage.setItem('ttsEnabled', ttsToggle.checked);
-    }
-
-    // Copy text to clipboard
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text)
-            .then(() => {
-                showToast('تم نسخ النص');
-            })
-            .catch(error => {
-                console.error('Error copying text:', error);
-                showError('فشل نسخ النص');
-            });
-    }
-
-    // Show toast notification
-    function showToast(message) {
-        const toast = document.createElement('div');
-        toast.className = 'toast';
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        
-        setTimeout(() => {
-            toast.classList.add('show');
-        }, 10);
-        
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => {
-                document.body.removeChild(toast);
-            }, 300);
-        }, 2000);
-    }
-
-    // Show error message
-    function showError(message) {
-        const errorElement = document.createElement('div');
-        errorElement.className = 'error-message';
-        errorElement.textContent = message;
-        messagesContainer.appendChild(errorElement);
-        scrollToBottom();
-        
-        setTimeout(() => {
-            errorElement.remove();
-        }, 5000);
-    }
-
-    // Show confirmation modal
-    function showConfirmModal(message, callback) {
-        confirmMessage.textContent = message;
-        confirmationCallback = callback;
-        confirmModal.style.display = 'flex';
-    }
-
-    // Close confirmation modal
-    function closeConfirmModal() {
-        confirmModal.style.display = 'none';
-        confirmationCallback = null;
-    }
-
-    // Handle confirmation
-    function handleConfirmation() {
-        if (confirmationCallback) {
-            confirmationCallback();
-        }
-        closeConfirmModal();
-    }
-
-    // Scroll messages to bottom
+    // --- Utility Functions ---
     function scrollToBottom() {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // Sidebar Functions
+    function adjustInputHeight() {
+        messageInput.style.height = 'auto';
+        const newHeight = Math.min(messageInput.scrollHeight, 200); // Max height 200px
+        messageInput.style.height = `${newHeight}px`;
+    }
+
     function toggleSidebar() {
-        settingsSidebar.classList.toggle('collapsed');
+        settingsSidebar.classList.toggle('show');
     }
 
-    function openSidebar() {
-        settingsSidebar.classList.add('active');
-        sidebarOverlay.classList.add('active');
+    function showConfirmModal(callback) {
+        confirmationCallback = callback;
+        confirmModal.classList.add('show');
     }
 
-    function closeSidebar() {
-        settingsSidebar.classList.remove('active');
-        sidebarOverlay.classList.remove('active');
+    function hideConfirmModal() {
+        confirmModal.classList.remove('show');
+        confirmationCallback = null;
     }
 
-    // Adjust UI based on screen size
-    function adjustUIForScreenSize() {
-        if (window.innerWidth <= 768) {
-            closeSidebar();
+    // --- Event Listeners ---
+    // Send button click
+    sendButton.addEventListener('click', sendMessage);
+
+    // Message input key press (Enter to send, Shift+Enter for new line)
+    messageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
         }
+        // Allow Shift+Enter to add a new line
+    });
+
+    // Auto-adjust input height as user types
+    messageInput.addEventListener('input', adjustInputHeight);
+
+    // New conversation button
+    newConversationButton.addEventListener('click', () => {
+        clearMessages();
+        currentConversationId = null;
+        messages = [{ role: 'assistant', content: WELCOME_MESSAGE_CONTENT }]; // Keep welcome message
+        hideRegenerateButton();
+        // Close sidebar on mobile
+        if (window.innerWidth <= 768) {
+            toggleSidebar();
+        }
+    });
+
+    // Temperature slider change
+    temperatureSlider.addEventListener('input', () => {
+        temperatureValueSpan.textContent = temperatureSlider.value;
+        localStorage.setItem('temperature', temperatureSlider.value);
+    });
+
+    // Max tokens input change
+    maxTokensInput.addEventListener('change', () => {
+        localStorage.setItem('maxTokens', maxTokensInput.value);
+    });
+
+    // Dark mode toggle
+    darkModeToggle.addEventListener('change', () => {
+        document.body.classList.toggle('dark-mode', darkModeToggle.checked);
+        localStorage.setItem('darkModeEnabled', darkModeToggle.checked);
+    });
+
+    // Toggle sidebar button
+    toggleSidebarButton.addEventListener('click', toggleSidebar);
+    mobileMenuButton.addEventListener('click', toggleSidebar);
+    mobileSettingsButton.addEventListener('click', toggleSidebar);
+
+    // Confirm modal buttons
+    confirmOkButton.addEventListener('click', () => {
+        if (confirmationCallback) {
+            confirmationCallback();
+        }
+        hideConfirmModal();
+    });
+
+    confirmCancelButton.addEventListener('click', hideConfirmModal);
+
+    // Network status listeners
+    window.addEventListener('online', function() {
+        offlineIndicator.classList.remove('visible');
+    });
+
+    window.addEventListener('offline', function() {
+        offlineIndicator.classList.add('visible');
+    });
+
+    // --- Initialization ---
+    // Load saved settings from localStorage
+    const savedTemperature = localStorage.getItem('temperature');
+    if (savedTemperature) {
+        temperatureSlider.value = savedTemperature;
+        temperatureValueSpan.textContent = savedTemperature;
     }
 
-    // Initial UI adjustment
-    adjustUIForScreenSize();
+    const savedMaxTokens = localStorage.getItem('maxTokens');
+    if (savedMaxTokens) {
+        maxTokensInput.value = savedMaxTokens;
+    }
+
+    const savedDarkMode = localStorage.getItem('darkModeEnabled');
+    if (savedDarkMode === 'true') {
+        darkModeToggle.checked = true;
+        document.body.classList.add('dark-mode');
+    }
+
+    // Check initial network status
+    if (!navigator.onLine) {
+        offlineIndicator.classList.add('visible');
+    }
+
+    // Initial UI setup
+    clearMessages(); // This adds the welcome message
+    loadConversations();
+    messageInput.focus();
 });
