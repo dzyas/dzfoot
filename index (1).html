@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ياسمين - المساعدة الذكية</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Status Bar (Header Style) -->
+    <div class="status-bar">
+        <div class="status-bar-left">
+            <span class="app-name">شات بوت ياسمين</span>
+            <span class="app-version">v3</span>
+        </div>
+        <div class="status-bar-right">
+            <i class="fas fa-cog"></i>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="app-container">
+        <!-- Sidebar for settings and conversations (hidden by default on mobile) -->
+        <div id="settings-sidebar">
+            <div class="sidebar-header">
+                <h2>ياسمين GPT</h2>
+                <button id="close-sidebar" class="icon-button close-button" title="إغلاق الشريط الجانبي">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- New Conversation Button -->
+            <button id="new-conversation" class="primary-button">
+                <i class="fas fa-plus"></i> محادثة جديدة
+            </button>
+
+            <!-- Conversations List Section -->
+            <div class="sidebar-section conversations-section">
+                <h3>المحادثات</h3>
+                <div id="conversations-list" class="conversations-container">
+                    <!-- Conversations will be listed here dynamically by app.js -->
+                    <div class="empty-state">لا توجد محادثات سابقة</div>
+                </div>
+            </div>
+
+            <!-- Settings Section -->
+            <div class="sidebar-section settings-section">
+                <h3>الإعدادات</h3>
+
+                <!-- Model Selection -->
+                <div class="setting-item">
+                    <label for="model-select">النموذج:</label>
+                    <select id="model-select">
+                        <option value="mistral-7b-instruct">ميسترال 7B</option>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                        <option value="llama3-70b">Llama3 70B</option>
+                        <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                    </select>
+                </div>
+
+                <!-- Temperature Control -->
+                <div class="setting-item">
+                    <label for="temperature-slider">درجة الإبداع:</label>
+                    <div class="slider-container">
+                        <input type="range" id="temperature-slider" min="0" max="1" step="0.1" value="0.7">
+                        <span id="temperature-value">0.7</span>
+                    </div>
+                </div>
+
+                <!-- Max Tokens -->
+                <div class="setting-item">
+                    <label for="max-tokens-input">الحد الأقصى للرموز:</label>
+                    <input type="number" id="max-tokens-input" value="512" min="50" max="4000" step="10">
+                </div>
+
+                <!-- Dark Mode Toggle -->
+                <div class="setting-item">
+                    <label for="dark-mode-toggle">الوضع الليلي:</label>
+                    <label class="switch">
+                        <input type="checkbox" id="dark-mode-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+
+                <!-- Text-to-Speech Toggle -->
+                <div class="setting-item">
+                    <label for="tts-toggle">قراءة الردود صوتياً:</label>
+                    <label class="switch">
+                        <input type="checkbox" id="tts-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Sidebar Footer -->
+            <div class="sidebar-footer">
+                <span>تم التطوير بواسطة ياسمين</span>
+                <button id="toggle-sidebar" class="icon-button" title="إغلاق الشريط الجانبي">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div> <!-- End #settings-sidebar -->
+
+        <!-- Overlay for mobile sidebar -->
+        <div id="sidebar-overlay"></div>
+
+        <!-- Main Chat Area -->
+        <div id="chat-container">
+            <!-- More Options Menu (3 dots) -->
+            <div class="more-menu">
+                <button class="dots-button">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+            </div>
+
+            <!-- App Header -->
+            <div class="app-header">
+                <div class="user-profile">
+                    <span>إيما!</span>
+                    <div class="avatar-container">
+                        <img src="{{ url_for('static', filename='img/avatar-girl.svg') }}" alt="ياسمين" class="profile-avatar">
+                    </div>
+                    <button class="nav-button">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                
+                <!-- Clear Chat Button -->
+                <div class="clear-chat-button">
+                    <span>مسح المحادثة</span>
+                    <i class="fas fa-trash"></i>
+                </div>
+            </div>
+
+            <!-- Offline Indicator -->
+            <div id="offline-indicator">
+                <i class="fas fa-exclamation-triangle"></i>
+                أنت غير متصل بالإنترنت
+            </div>
+
+            <!-- Messages Container -->
+            <div id="messages">
+                <!-- Messages will be added dynamically by JavaScript -->
+                <!-- Example message structure from the design -->
+                <div class="timestamp-bubble">22/4/2025, 3:21 م</div>
+                
+                <div class="message-bubble ai-bubble">
+                    <p>مرحباً، أنا ياسمين مساعدتك الذكية. كيف يمكنني مساعدتك اليوم؟ <span class="emoji">😊</span></p>
+                    <div class="avatar-small">
+                        <img src="{{ url_for('static', filename='img/yasmin-photo.png') }}" alt="ياسمين">
+                    </div>
+                </div>
+                
+                <div class="suggestions-container">
+                    <div class="suggestion-label">
+                        <i class="far fa-lightbulb"></i>
+                        <span>يمكنك المحاولة بطرح السؤال هكذا</span>
+                    </div>
+                    
+                    <div class="suggestion-chips">
+                        <button class="suggestion-chip">أجد صورتك في رسم البورتريه. إنه محبط.</button>
+                        <button class="suggestion-chip">إيما! أريد أن أتعلم عن الموسيقى الكلاسيكية. هل لديك أي توصيات؟</button>
+                        <button class="suggestion-chip">أشعر بالإحباط مؤخراً، ولست متأكداً من السبب.</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div id="input-area">
+                <div id="input-container">
+                    <!-- <button id="mic-button" title="تسجيل الصوت">
+                        <i class="fas fa-microphone"></i>
+                    </button> -->
+                    <textarea id="message-input" placeholder="اكتب رسالتك هنا..."></textarea>
+                    <button id="send-button" title="إرسال">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                
+                <!-- Feedback Buttons -->
+                <div class="feedback-buttons">
+                    <button id="like-button" class="feedback-btn" title="أعجبني">
+                        <i class="fas fa-thumbs-up"></i>
+                    </button>
+                    <button id="dislike-button" class="feedback-btn" title="لم يعجبني">
+                        <i class="fas fa-thumbs-down"></i>
+                    </button>
+                    <button id="volume-button" class="feedback-btn" title="تشغيل الصوت">
+                        <i class="fas fa-volume-up"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bottom Nav Bar (Mobile Style) -->
+            <div class="bottom-nav-bar">
+                <button id="mobile-menu-button"><i class="fas fa-bars"></i></button>
+                <button id="mobile-record-button"><i class="fas fa-microphone"></i></button>
+                <button id="mobile-back-button"><i class="fas fa-arrow-left"></i></button>
+            </div>
+        </div> <!-- End #chat-container -->
+    </div> <!-- End .app-container -->
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal">
+        <div class="modal-content">
+            <h3>تأكيد</h3>
+            <p id="confirm-message">هل أنت متأكد؟</p>
+            <div class="modal-buttons">
+                <button id="confirm-cancel">إلغاء</button>
+                <button id="confirm-ok" class="danger-button">تأكيد</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
