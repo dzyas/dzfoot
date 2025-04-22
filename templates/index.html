@@ -3,27 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ app_title }}</title>
+    <title>ياسمين - المساعدة الذكية</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <!-- Updated Font Awesome for potentially newer icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <!-- Fonts for better Arabic support -->
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- Status Bar (Header Style) -->
+    <div class="status-bar">
+        <div class="status-bar-left">
+            <span class="app-name">شات بوت ياسمين</span>
+            <span class="app-version">v3</span>
+        </div>
+        <div class="status-bar-right">
+            <i class="fas fa-cog"></i>
+        </div>
+    </div>
+
     <!-- Main Container -->
     <div class="app-container">
-        <!-- Sidebar for settings and conversations -->
+        <!-- Sidebar for settings and conversations (hidden by default on mobile) -->
         <div id="settings-sidebar">
-             <div class="sidebar-header">
-                 <h2>ياسمين GPT</h2>
-                 <!-- Close button for mobile, hidden on desktop -->
-                 <button id="close-sidebar" class="icon-button close-button" title="إغلاق الشريط الجانبي">
-                     <i class="fas fa-times"></i>
-                 </button>
-             </div>
-
+            <div class="sidebar-header">
+                <h2>ياسمين GPT</h2>
+                <button id="close-sidebar" class="icon-button close-button" title="إغلاق الشريط الجانبي">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
 
             <!-- New Conversation Button -->
             <button id="new-conversation" class="primary-button">
@@ -39,20 +45,6 @@
                 </div>
             </div>
 
-            <!-- Features Section -->
-            <div class="sidebar-section features-section">
-                <h3>الميزات</h3>
-
-                <!-- Translation Feature Example -->
-                <div class="feature-item">
-                    <a href="/translation" class="feature-link">
-                        <i class="fas fa-language"></i> خدمة الترجمة
-                    </a>
-                </div>
-                 <!-- Add other feature items here as needed -->
-                 <!-- Example: <div class="feature-item"><a href="/speech" class="feature-link"><i class="fas fa-microphone"></i> خدمة الصوت</a></div> -->
-            </div>
-
             <!-- Settings Section -->
             <div class="sidebar-section settings-section">
                 <h3>الإعدادات</h3>
@@ -61,7 +53,11 @@
                 <div class="setting-item">
                     <label for="model-select">النموذج:</label>
                     <select id="model-select">
-                        <!-- Options will be loaded dynamically by app.js -->
+                        <option value="mistral-7b-instruct">ميسترال 7B</option>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                        <option value="llama3-70b">Llama3 70B</option>
+                        <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
                     </select>
                 </div>
 
@@ -97,106 +93,115 @@
                         <span class="slider round"></span>
                     </label>
                 </div>
-                 <!-- Add other settings items here -->
             </div>
 
             <!-- Sidebar Footer -->
             <div class="sidebar-footer">
                 <span>تم التطوير بواسطة ياسمين</span>
-                <!-- Toggle sidebar button (Desktop Only), hidden on mobile -->
                 <button id="toggle-sidebar" class="icon-button" title="إغلاق الشريط الجانبي">
                     <i class="fas fa-chevron-right"></i>
                 </button>
             </div>
         </div> <!-- End #settings-sidebar -->
 
-        <!-- Overlay for mobile sidebar, hidden on desktop -->
+        <!-- Overlay for mobile sidebar -->
         <div id="sidebar-overlay"></div>
 
         <!-- Main Chat Area -->
         <div id="chat-container">
+            <!-- More Options Menu (3 dots) -->
+            <div class="more-menu">
+                <button class="dots-button">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+            </div>
+
             <!-- App Header -->
-            <div class="chat-header">
-                <h2>{{ app_title }} <span class="version">v2.0</span></h2>
-                <p>شركة dzteck | بواسطة rahmani</p>
-            </div> <!-- End .chat-header -->
+            <div class="app-header">
+                <div class="user-profile">
+                    <span>إيما!</span>
+                    <div class="avatar-container">
+                        <img src="{{ url_for('static', filename='img/avatar-girl.svg') }}" alt="ياسمين" class="profile-avatar">
+                    </div>
+                    <button class="nav-button">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                
+                <!-- Clear Chat Button -->
+                <div class="clear-chat-button">
+                    <span>مسح المحادثة</span>
+                    <i class="fas fa-trash"></i>
+                </div>
+            </div>
 
             <!-- Offline Indicator -->
             <div id="offline-indicator">
                 <i class="fas fa-exclamation-triangle"></i>
                 أنت غير متصل بالإنترنت
-            </div> <!-- End #offline-indicator -->
+            </div>
 
             <!-- Messages Container -->
             <div id="messages">
-                <!-- Initial Welcome Message (added by app.js on load if no conversation) -->
-                <!-- Example structure of a message bubble: -->
-                <!--
-                <div class="message-bubble ai-bubble initial-welcome" data-message-id="[optional-db-id]">
-                    <p>السلام عليكم! أنا ياسمين، مساعدتك الرقمية بالعربية. كيف يمكنني مساعدتك اليوم؟</p>
-                    <div class="message-timestamp">10:30 ص</div>
-                    <div class="message-actions">
-                        <button class="copy-btn" title="نسخ الرد"><i class="fas fa-copy"></i></button>
-                         <button class="speak-btn" title="استماع إلى الرد"><i class="fas fa-volume-up"></i></button>
-                        <div class="vote-buttons">
-                            <button class="like-btn" title="أعجبني" data-vote-type="like"><i class="fas fa-thumbs-up"></i></button>
-                            <button class="dislike-btn" title="لم يعجبني" data-vote-type="dislike"><i class="fas fa-thumbs-down"></i></button>
-                        </div>
+                <!-- Messages will be added dynamically by JavaScript -->
+                <!-- Example message structure from the design -->
+                <div class="timestamp-bubble">22/4/2025, 3:21 م</div>
+                
+                <div class="message-bubble ai-bubble">
+                    <p>مرحباً، أنا ياسمين مساعدتك الذكية. كيف يمكنني مساعدتك اليوم؟ <span class="emoji">😊</span></p>
+                    <div class="avatar-small">
+                        <img src="{{ url_for('static', filename='img/yasmin-photo.png') }}" alt="ياسمين">
                     </div>
                 </div>
-                <div class="message-bubble user-bubble" data-message-id="[optional-db-id]">
-                    <p>مرحبا ياسمين، كيف حالك؟</p>
-                    <div class="message-timestamp">10:31 ص</div>
-                     <div class="message-actions">
-                         <button class="copy-btn" title="نسخ الرسالة"><i class="fas fa-copy"></i></button>
-                          // Vote buttons typically only for AI messages
+                
+                <div class="suggestions-container">
+                    <div class="suggestion-label">
+                        <i class="far fa-lightbulb"></i>
+                        <span>يمكنك المحاولة بطرح السؤال هكذا</span>
+                    </div>
+                    
+                    <div class="suggestion-chips">
+                        <button class="suggestion-chip">أجد صورتك في رسم البورتريه. إنه محبط.</button>
+                        <button class="suggestion-chip">إيما! أريد أن أتعلم عن الموسيقى الكلاسيكية. هل لديك أي توصيات؟</button>
+                        <button class="suggestion-chip">أشعر بالإحباط مؤخراً، ولست متأكداً من السبب.</button>
                     </div>
                 </div>
-                -->
-
-            </div> <!-- End #messages -->
-
-            <!-- Regenerate Button (Positioned by app.js) -->
-             <!-- This button is created and moved by JS -->
+            </div>
 
             <!-- Input Area -->
             <div id="input-area">
                 <div id="input-container">
-                    <textarea id="message-input" placeholder="اكتب رسالتك هنا... (Enter للإرسال، Shift+Enter لإضافة سطر)"></textarea>
-                    <!-- Microphone Button (shown if STT supported) -->
-                    <button id="mic-button" class="icon-button" title="إدخال صوتي">
+                    <!-- <button id="mic-button" title="تسجيل الصوت">
                         <i class="fas fa-microphone"></i>
-                    </button>
-                    <!-- Send Button -->
+                    </button> -->
+                    <textarea id="message-input" placeholder="اكتب رسالتك هنا..."></textarea>
                     <button id="send-button" title="إرسال">
                         <i class="fas fa-paper-plane"></i>
                     </button>
-                </div> <!-- End #input-container -->
-                <div class="input-footer">
-                    <span class="typing-hint">Enter للإرسال • Shift+Enter لسطر جديد</span>
-                    <!-- Mobile Settings Button (opens sidebar), hidden on desktop -->
-                    <button id="mobile-settings" class="icon-button" title="الإعدادات">
-                        <i class="fas fa-cog"></i>
+                </div>
+                
+                <!-- Feedback Buttons -->
+                <div class="feedback-buttons">
+                    <button id="like-button" class="feedback-btn" title="أعجبني">
+                        <i class="fas fa-thumbs-up"></i>
                     </button>
-                </div> <!-- End .input-footer -->
-            </div> <!-- End #input-area -->
+                    <button id="dislike-button" class="feedback-btn" title="لم يعجبني">
+                        <i class="fas fa-thumbs-down"></i>
+                    </button>
+                    <button id="volume-button" class="feedback-btn" title="تشغيل الصوت">
+                        <i class="fas fa-volume-up"></i>
+                    </button>
+                </div>
+            </div>
 
-            <!-- Global App Error Message Container -->
-             <div id="app-error-message" class="app-error-message"></div>
-
-
-            <!-- App Footer -->
-            <div class="chat-footer">
-                <p>التطوير بواسطة شركة dzteck للبرمجيات | الإصدار v2.0</p>
-            </div> <!-- End .chat-footer -->
-
+            <!-- Bottom Nav Bar (Mobile Style) -->
+            <div class="bottom-nav-bar">
+                <button id="mobile-menu-button"><i class="fas fa-bars"></i></button>
+                <button id="mobile-record-button"><i class="fas fa-microphone"></i></button>
+                <button id="mobile-back-button"><i class="fas fa-arrow-left"></i></button>
+            </div>
         </div> <!-- End #chat-container -->
     </div> <!-- End .app-container -->
-
-    <!-- Mobile Menu Button (only visible on small screens, opens sidebar) -->
-    <button id="mobile-menu" class="icon-button" title="فتح القائمة">
-        <i class="fas fa-bars"></i>
-    </button>
 
     <!-- Confirmation Modal -->
     <div id="confirm-modal" class="modal">
@@ -208,10 +213,9 @@
                 <button id="confirm-ok" class="danger-button">تأكيد</button>
             </div>
         </div>
-    </div> <!-- End #confirm-modal -->
+    </div>
 
-    <!-- Script Tag -->
+    <!-- Script -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-
 </body>
 </html>
