@@ -1,12 +1,34 @@
-<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background Circle -->
-  <circle cx="50" cy="50" r="48" fill="#4a7aff" />
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <circle cx="100" cy="100" r="100" fill="#B0C4DE"/>
   
-  <!-- User Silhouette -->
-  <path d="M50 55c-13.25 0-25 5.75-25 18v7h50v-7c0-12.25-11.75-18-25-18z" fill="#ffffff" />
-  <circle cx="50" cy="36" r="16" fill="#ffffff" />
+  <!-- Face -->
+  <circle cx="100" cy="95" r="40" fill="#f5d0a9"/>
   
-  <!-- Decorative Pattern -->
-  <path d="M50 10c22.08 0 40 17.92 40 40S72.08 90 50 90 10 72.08 10 50 27.92 10 50 10m0-5C25.15 5 5 25.15 5 50s20.15 45 45 45 45-20.15 45-45S74.85 5 50 5z" 
-        fill="#3a6ae8" opacity="0.7" />
+  <!-- Hair -->
+  <path d="M50 90c0-30 22-50 50-50s50 20 50 50c0 0-10-5-20-8s-20-2-30-2-20 4-30 5c-10 1-20 5-20 5z" fill="#5D4037"/>
+  <path d="M60 105c0 0 5-25 40-25s40 25 40 25" fill="#5D4037"/>
+  
+  <!-- Eyes -->
+  <g>
+    <ellipse cx="85" cy="90" rx="5" ry="6" fill="#4E342E"/>
+    <ellipse cx="115" cy="90" rx="5" ry="6" fill="#4E342E"/>
+    <path d="M85 84c2.5 0 4 1.5 4 3m26-3c-2.5 0-4 1.5-4 3" stroke="#4E342E" stroke-width="1.5" fill="none"/>
+  </g>
+  
+  <!-- Nose -->
+  <path d="M 100 95 Q 102 100 100 105" fill="none" stroke="#A1887F" stroke-width="1"/>
+  
+  <!-- Mouth -->
+  <path d="M90 110c3 5 7 7 20 0" fill="none" stroke="#795548" stroke-width="1.5"/>
+  
+  <!-- Facial hair -->
+  <path d="M80 120c5 2 10 3 20 3s15-1 20-3" fill="none" stroke="#5D4037" stroke-width="2"/>
+  <path d="M80 125c3 1 10 3 20 3s17-2 20-3" fill="none" stroke="#5D4037" stroke-width="1.5"/>
+  
+  <!-- Neck -->
+  <path d="M85 130c0 0 15 10 30 0" fill="#f5d0a9"/>
+  
+  <!-- Shirt collar -->
+  <path d="M65 150c0 0 15-20 35-20s35 20 35 20" fill="#4285f4"/>
 </svg>
