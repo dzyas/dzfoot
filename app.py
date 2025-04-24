@@ -52,10 +52,14 @@ db.init_app(app)
 # --- Load API Keys ---
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY")
+
 if not OPENROUTER_API_KEY:
     logger.warning("OPENROUTER_API_KEY environment variable is not set. OpenRouter functionality will be simulated.")
 if not GEMINI_API_KEY:
     logger.warning("GEMINI_API_KEY environment variable is not set. Direct Gemini API integration won't be available.")
+if not ELEVENLABS_API_KEY:
+    logger.warning("ELEVENLABS_API_KEY environment variable is not set. Text-to-speech functionality won't be available.")
 
 # Other app settings
 APP_TITLE = "ياسمين - المساعد الذكي"
@@ -156,6 +160,79 @@ offline_responses = {
 }
 default_offline_response = "أعتذر، لا يمكنني معالجة طلبك الآن. يبدو أن هناك مشكلة في الاتصال بالإنترنت أو بخدمات الذكاء الاصطناعي."
 
+# --- ElevenLabs Text-to-Speech API ---
+def preprocess_arabic_text(text):
+    """
+    Preprocess Arabic text to improve pronunciation with ElevenLabs.
+    This helps improve the speech output quality for Arabic text.
+    """
+    # Add model hints to help with pronunciation
+    if text.strip():
+        # Add language instruction as a hint for the model
+        enhanced_text = "[تُنطق بالعربية الفصحى]\n" + text
+        
+        # For long texts, add breaks to help with pacing and clarity
+        if len(text) > 100:
+            sentences = text.split('.')
+            processed = ""
+            for i, sentence in enumerate(sentences):
+                if sentence.strip():
+                    processed += sentence.strip() + ".\n" if i < len(sentences)-1 else sentence.strip()
+            
+            # More detailed pronunciation hints
+            return "[نص عربي للقراءة ببطء ووضوح]\n" + processed
+        
+        return enhanced_text
+    
+    return text
+
+def text_to_speech(text, voice_id="EXAVITQu4vr4xnSDxMaL"):
+    """Convert text to speech using ElevenLabs API"""
+    ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY")
+    
+    if not ELEVENLABS_API_KEY:
+        logger.warning("ELEVENLABS_API_KEY environment variable is not set. Text-to-speech functionality won't work.")
+        return None
+    
+    # Preprocess Arabic text to improve pronunciation
+    processed_text = preprocess_arabic_text(text)
+    
+    # ElevenLabs API endpoint
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+    
+    # Set the headers with API key
+    headers = {
+        "Accept": "audio/mpeg",
+        "Content-Type": "application/json",
+        "xi-api-key": ELEVENLABS_API_KEY
+    }
+    
+    # Build the request payload with optimized settings for Arabic
+    payload = {
+        "text": processed_text,
+        "model_id": "eleven_multilingual_v2",  # Use the multilingual model for better language support
+        "voice_settings": {
+            "stability": 0.75,           # Higher stability for clearer pronunciation
+            "similarity_boost": 0.75,    # Higher similarity for more consistent voice
+            "style": 0.5,                # Moderate style interpolation
+            "use_speaker_boost": True    # Enhance speaker clarity
+        }
+    }
+    
+    try:
+        # Make the API request
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            return response.content
+        else:
+            logger.error(f"ElevenLabs API error: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error calling ElevenLabs API: {e}")
+        return None
+
 # --- AI response generation with OpenRouter ---
 def generate_ai_response(messages_list, model="gemini-1.5-pro", temperature=0.7, max_tokens=2000):
     """Generate an AI response based on the user's input using OpenRouter API or fallback"""
@@ -197,7 +274,26 @@ def generate_ai_response(messages_list, model="gemini-1.5-pro", temperature=0.7,
 @app.route('/')
 def index():
     """Render the main page"""
-    return render_template('index.html', app_title=APP_TITLE)
+    elevenlabs_available = bool(os.environ.get("ELEVENLABS_API_KEY"))
+    return render_template('index.html', app_title=APP_TITLE, elevenlabs_available=elevenlabs_available)
+
+@app.route('/api/voices', methods=['GET'])
+def get_voices():
+    """Get available ElevenLabs voices"""
+    voices = [
+        {"id": "EXAVITQu4vr4xnSDxMaL", "name": "آدم"},
+        {"id": "21m00Tcm4TlvDq8ikWAM", "name": "راشيل"},
+        {"id": "ONIBU1mnHqbNnNtBkZMM", "name": "أمير"},
+        {"id": "jsCqWAovK2LkecY7zXl4", "name": "سارة"},
+        {"id": "XrExE9yKIg1WjnnlVkGX", "name": "فهد"},
+        {"id": "SOYHLrjzK2X1ezoPC6cr", "name": "ليلى"},
+        {"id": "pNInz6obpgDQGcFmaJgB", "name": "هدى"},
+        {"id": "29vD33N1CtxCmqQRPOHJ", "name": "نور"}
+    ]
+    return jsonify({
+        "success": True,
+        "voices": voices
+    })
 
 @app.route('/api/conversations', methods=['GET'])
 def get_conversations():
@@ -359,6 +455,8 @@ def create_message(conversation_id):
         model = data.get('model', 'gemini-1.5-pro')
         temperature = float(data.get('temperature', 0.7))
         max_tokens = int(data.get('max_tokens', 2000))
+        voice_enabled = data.get('voice_enabled', False)
+        voice_id = data.get('voice_id', "EXAVITQu4vr4xnSDxMaL")  # Default to Adam voice
         
         if not user_message:
             return jsonify({
@@ -407,18 +505,31 @@ def create_message(conversation_id):
             words = user_message.split()
             title = " ".join(words[:4]) + ("..." if len(words) > 4 else "")
             conversation.title = title
-            
+        
+        # Generate speech if requested
+        audio_data = None
+        if voice_enabled:
+            audio_data = text_to_speech(ai_response, voice_id)
+        
         conversation.updated_at = datetime.now(timezone.utc)
         db.session.commit()
         
-        return jsonify({
+        response_data = {
             "success": True,
             "conversation_id": str(conversation.id),
             "messages": [
                 user_msg.to_dict(),
                 ai_msg.to_dict()
             ]
-        })
+        }
+        
+        # Add voice data to response if available
+        if audio_data:
+            # Convert binary audio data to base64 for JSON response
+            import base64
+            response_data["audio"] = base64.b64encode(audio_data).decode('utf-8')
+        
+        return jsonify(response_data)
     
     except Exception as e:
         db.session.rollback()
