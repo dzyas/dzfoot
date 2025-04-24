@@ -25,7 +25,7 @@ h1, h2, h3, h4, h5, h6 {
     font-weight: 600;
 }
 
-/* Yasmin branding */
+/* Yasmin branding and status bar */
 .yasmin-badge {
     background-color: var(--primary-color);
     color: white;
@@ -37,15 +37,32 @@ h1, h2, h3, h4, h5, h6 {
     right: 15px;
 }
 
+/* Status bar styling */
+.status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(to right, #daa987, #f0d7b9);
+    color: #333;
+    padding: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    position: relative;
+    z-index: 100;
+}
+
 /* Enhanced message bubble styling */
 .message-bubble.assistant .message-content {
     position: relative;
-    border-right: 3px solid var(--primary-color);
+    background: linear-gradient(135deg, #f0d7b9, #daa987);
+    border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .message-bubble.user .message-content {
     position: relative;
-    border-left: 3px solid var(--secondary-color);
+    background-color: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 /* Improved code block styling for RTL */
@@ -217,4 +234,32 @@ body.dark-mode::-webkit-scrollbar-thumb:hover {
 
 body.dark-mode .suggestion-button::after {
     background: linear-gradient(to left, rgba(0, 0, 0, 0), rgba(255, 255, 255, 0.05));
+}
+
+/* Message actions and buttons */
+.message-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 8px;
+    padding-right: 10px;
+}
+
+.message-action-btn {
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: #888;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+}
+
+.message-action-btn:hover {
+    opacity: 1;
+    color: #666;
+}
+
+.liked {
+    color: #e74c3c !important;
 }

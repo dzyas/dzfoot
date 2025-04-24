@@ -108,6 +108,7 @@ body {
     display: flex;
     margin-bottom: 15px;
     max-width: 100%;
+    position: relative;
 }
 
 .message-avatar {
@@ -127,8 +128,7 @@ body {
 .message-content {
     flex: 1;
     padding: 12px 15px;
-    border-radius: var(--border-radius);
-    box-shadow: var(--shadow-sm);
+    border-radius: 24px;
     position: relative;
     max-width: 85%;
 }
@@ -163,12 +163,11 @@ body {
 }
 
 .message-bubble.user .message-content {
-    background-color: var(--user-message-bg);
+    background-color: #ffffff;
     color: var(--text-color);
-    border-top-left-radius: var(--border-radius);
-    border-bottom-left-radius: var(--border-radius);
-    border-top-right-radius: var(--border-radius);
-    border-bottom-right-radius: 0;
+    border-radius: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.05);
     margin-left: 0;
 }
 
@@ -177,13 +176,32 @@ body {
 }
 
 .message-bubble.assistant .message-content {
-    background-color: var(--assistant-message-bg);
+    background: linear-gradient(135deg, #f0d7b9, #daa987);
     color: var(--text-color);
-    border-top-left-radius: var(--border-radius);
-    border-bottom-left-radius: 0;
-    border-top-right-radius: var(--border-radius);
-    border-bottom-right-radius: var(--border-radius);
+    border-radius: 24px;
     margin-right: 0;
+}
+
+.message-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+    justify-content: flex-end;
+}
+
+.message-action-btn {
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: #888;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+}
+
+.message-action-btn:hover {
+    opacity: 1;
+    color: var(--primary-color);
 }
 
 .message-time {
@@ -205,10 +223,10 @@ body {
 #input-container {
     display: flex;
     align-items: center;
-    background-color: var(--input-bg);
-    border-radius: 20px;
+    background-color: #f0f0f0;
+    border-radius: 24px;
     padding: 0 8px;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     max-width: 800px;
     margin: 0 auto;
 }
@@ -235,7 +253,7 @@ body {
 .icon-button {
     background: none;
     border: none;
-    color: var(--primary-color);
+    color: #666;
     cursor: pointer;
     padding: 10px;
     display: flex;
@@ -247,7 +265,11 @@ body {
 }
 
 .icon-button:hover {
-    background-color: rgba(67, 97, 238, 0.1);
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.liked {
+    color: #e74c3c !important;
 }
 
 .primary-button {
