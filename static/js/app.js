@@ -49,6 +49,21 @@ function loadSettings() {
         }
     }
     
+    // Load browser TTS preference
+    const useBrowserTTS = localStorage.getItem('useBrowserTTS') === 'true';
+    if (document.getElementById('use-browser-tts')) {
+        document.getElementById('use-browser-tts').checked = useBrowserTTS;
+        toggleElevenLabsVoiceSelector(useBrowserTTS);
+    }
+    
+    // Load voice preference
+    if (localStorage.getItem('voiceId')) {
+        const voiceSelect = document.getElementById('voice-select');
+        if (voiceSelect) {
+            voiceSelect.value = localStorage.getItem('voiceId');
+        }
+    }
+    
     // Load model preference
     const savedModel = localStorage.getItem('model');
     if (savedModel && document.getElementById('model-select')) {
@@ -80,6 +95,14 @@ function setupEventListeners() {
     const sidebarOverlay = document.getElementById('sidebar-overlay');
     if (sidebarOverlay) {
         sidebarOverlay.addEventListener('click', closeSidebar);
+    }
+    
+    // Voice select change
+    const voiceSelect = document.getElementById('voice-select');
+    if (voiceSelect) {
+        voiceSelect.addEventListener('change', function() {
+            localStorage.setItem('voiceId', this.value);
+        });
     }
     
     // Dropdown menu toggle (3 dots)
@@ -178,6 +201,16 @@ function setupEventListeners() {
     const textToSpeechToggle = document.getElementById('text-to-speech-toggle');
     if (textToSpeechToggle) {
         textToSpeechToggle.addEventListener('change', saveTextToSpeechPreference);
+    }
+    
+    // Browser TTS toggle
+    const browserTtsToggle = document.getElementById('use-browser-tts');
+    if (browserTtsToggle) {
+        browserTtsToggle.addEventListener('change', function() {
+            const useBrowserTts = this.checked;
+            localStorage.setItem('useBrowserTTS', useBrowserTts);
+            toggleElevenLabsVoiceSelector(useBrowserTts);
+        });
     }
     
     // Confirm dialog buttons
@@ -293,6 +326,7 @@ function updateRecordingUI(isActive) {
 }
 
 function initSpeechSynthesis() {
+    // Initialize browser's speech synthesis (for fallback when ElevenLabs is not available)
     if ('speechSynthesis' in window) {
         window.synth = window.speechSynthesis;
         
@@ -308,43 +342,102 @@ function initSpeechSynthesis() {
             window.arabicVoice = voices.find(voice => voice.lang.includes('ar')) || voices[0];
         }
     }
+    
+    // Initialize ElevenLabs audio player
+    window.audioPlayer = new Audio();
+}
+
+function toggleElevenLabsVoiceSelector(useBrowserTTS) {
+    // Show/hide ElevenLabs voice selector based on browser TTS preference
+    const voiceSelector = document.getElementById('elevenlabs-voices');
+    if (voiceSelector) {
+        voiceSelector.style.display = useBrowserTTS ? 'none' : 'block';
+    }
 }
 
 function speakText(text) {
-    if ('speechSynthesis' in window && window.synth) {
-        // Check if text-to-speech is enabled
-        if (localStorage.getItem('textToSpeech') === 'false') {
-            return;
+    // Check if text-to-speech is enabled
+    if (localStorage.getItem('textToSpeech') === 'false') {
+        return;
+    }
+    
+    // Check if browser TTS is preferred
+    const useBrowserTTS = localStorage.getItem('useBrowserTTS') === 'true';
+    
+    if (useBrowserTTS) {
+        // Use browser's built-in speech synthesis
+        if ('speechSynthesis' in window && window.synth) {
+            // Cancel any ongoing speech
+            window.synth.cancel();
+            
+            // Create a new utterance
+            const utterance = new SpeechSynthesisUtterance(text);
+            
+            // Set language to Arabic
+            utterance.lang = 'ar';
+            
+            // Set voice if we have an Arabic voice
+            if (window.arabicVoice) {
+                utterance.voice = window.arabicVoice;
+            }
+            
+            // Adjust speech parameters for better Arabic pronunciation
+            utterance.pitch = 1;
+            utterance.rate = 0.9; // Slightly slower for clearer Arabic pronunciation
+            utterance.volume = 1;
+            
+            // Speak the text
+            window.synth.speak(utterance);
+        } else {
+            console.warn('Browser speech synthesis not available');
         }
-        
-        // Cancel any ongoing speech
-        window.synth.cancel();
-        
-        // Create a new utterance
-        const utterance = new SpeechSynthesisUtterance(text);
-        
-        // Set language to Arabic
-        utterance.lang = 'ar';
-        
-        // Set voice if we have an Arabic voice
-        if (window.arabicVoice) {
-            utterance.voice = window.arabicVoice;
-        }
-        
-        // Adjust speech parameters
-        utterance.pitch = 1;
-        utterance.rate = 1;
-        utterance.volume = 1;
-        
-        // Speak the text
-        window.synth.speak(utterance);
+    } else {
+        // ElevenLabs will handle TTS via the API
+        // Note: Nothing to do here, as the server-side handles calling ElevenLabs
+        // The audio data will be returned with the API response
     }
 }
 
 function stopSpeaking() {
+    // Stop browser's speech synthesis
     if ('speechSynthesis' in window && window.synth) {
         window.synth.cancel();
     }
+    
+    // Stop ElevenLabs audio
+    if (window.audioPlayer) {
+        window.audioPlayer.pause();
+        window.audioPlayer.currentTime = 0;
+    }
+}
+
+// Play audio from ElevenLabs using base64 data
+function playAudioFromBase64(base64Audio) {
+    if (!base64Audio) return;
+    
+    // Check if text-to-speech is enabled
+    if (localStorage.getItem('textToSpeech') === 'false') {
+        return;
+    }
+    
+    // Stop any ongoing speech first
+    stopSpeaking();
+    
+    // Convert base64 to blob URL
+    const binary = atob(base64Audio);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: 'audio/mpeg' });
+    const audioUrl = URL.createObjectURL(blob);
+    
+    // Play the audio
+    window.audioPlayer.src = audioUrl;
+    window.audioPlayer.play().catch(error => {
+        console.error('Error playing audio:', error);
+        showToast('حدث خطأ في تشغيل الصوت', 'error');
+    });
 }
 
 function toggleDropdownMenu() {
@@ -750,6 +843,15 @@ function sendMessage() {
     // If no current conversation, use 'new'
     const conversationId = currentConversationId || 'new';
     
+    // Check if text-to-speech is enabled
+    const voice_enabled = document.getElementById('text-to-speech-toggle') && 
+                          document.getElementById('text-to-speech-toggle').checked;
+    
+    // Get selected voice if available
+    const voice_id = document.getElementById('voice-select') ? 
+                     document.getElementById('voice-select').value : 
+                     'EXAVITQu4vr4xnSDxMaL';
+    
     // Send message to API
     fetch(`/api/conversations/${conversationId}/messages`, {
         method: 'POST',
@@ -760,7 +862,9 @@ function sendMessage() {
             message,
             model,
             temperature,
-            max_tokens: maxTokens
+            max_tokens: maxTokens,
+            voice_enabled,
+            voice_id
         })
     })
         .then(response => {
@@ -784,8 +888,14 @@ function sendMessage() {
                 const assistantMessage = data.messages[1]; // Second message is the assistant's response
                 addMessageToUI('assistant', assistantMessage.content, new Date(assistantMessage.created_at));
                 
-                // Speak response if text-to-speech is enabled
-                speakText(assistantMessage.content);
+                // Check if we have audio data from ElevenLabs
+                if (data.audio) {
+                    // Play audio from ElevenLabs
+                    playAudioFromBase64(data.audio);
+                } else {
+                    // Fallback to browser's speech synthesis
+                    speakText(assistantMessage.content);
+                }
                 
                 // Scroll to bottom
                 scrollToBottom();
@@ -855,6 +965,55 @@ function addMessageToUI(role, content, timestamp) {
             <div class="message-time">${formattedTime}</div>
         </div>
     `;
+    
+    // Add action buttons for assistant messages
+    if (role === 'assistant') {
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'message-actions';
+        actionsDiv.innerHTML = `
+            <button class="message-action-btn copy-btn" title="نسخ الرسالة">
+                <i class="fas fa-copy"></i>
+            </button>
+            <button class="message-action-btn like-btn" title="إعجاب">
+                <i class="fas fa-heart"></i>
+            </button>
+            <button class="message-action-btn share-btn" title="مشاركة">
+                <i class="fas fa-share-alt"></i>
+            </button>
+        `;
+        
+        // Add event listener for copy button
+        const copyBtn = actionsDiv.querySelector('.copy-btn');
+        copyBtn.addEventListener('click', function() {
+            const textToCopy = content;
+            navigator.clipboard.writeText(textToCopy).then(function() {
+                showToast('تم نسخ الرسالة بنجاح!', 'success');
+            }, function() {
+                showToast('فشل في نسخ الرسالة', 'error');
+            });
+        });
+        
+        // Add event listener for like button
+        const likeBtn = actionsDiv.querySelector('.like-btn');
+        likeBtn.addEventListener('click', function() {
+            this.classList.toggle('liked');
+            if(this.classList.contains('liked')) {
+                this.style.color = '#e74c3c';
+                showToast('أعجبتك هذه الرسالة', 'success');
+            } else {
+                this.style.color = '';
+                showToast('تم إلغاء الإعجاب', 'info');
+            }
+        });
+        
+        // Add event listener for share button
+        const shareBtn = actionsDiv.querySelector('.share-btn');
+        shareBtn.addEventListener('click', function() {
+            showToast('جاري مشاركة الرسالة...', 'info');
+        });
+        
+        messageElement.appendChild(actionsDiv);
+    }
     
     // Add message to container
     messagesContainer.appendChild(messageElement);
