@@ -6,10 +6,8 @@ import requests
 from datetime import datetime, timezone
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import String, Text, DateTime, ForeignKey, select, delete, update, desc
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import DeclarativeBase
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # --- Setup Logging ---
 log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
@@ -22,11 +20,12 @@ class Base(DeclarativeBase):
 
 # --- Initialize Flask and SQLAlchemy ---
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)  # needed for url_for to generate with https
 
 # --- Load sensitive settings from environment variables ---
 app.secret_key = os.environ.get("SESSION_SECRET")
 if not app.secret_key:
-    logger.warning("SESSION_SECRET environment variable not set. Using a default insecure key for now.")
+    logger.warning("SESSION_SECRET environment variable not set. Using a default insecure key for development.")
     app.secret_key = "default-insecure-secret-key-for-development"
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -41,7 +40,7 @@ else:
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 280,  # Slightly less than 5 minutes (common for timeouts)
-    "pool_pre_ping": True, # To check the connection before using it
+    "pool_pre_ping": True,  # To check the connection before using it
     "pool_timeout": 10,   # Wait time to get a connection from the pool
 }
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -52,94 +51,24 @@ db.init_app(app)
 
 # --- Load API Keys ---
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if not OPENROUTER_API_KEY:
     logger.warning("OPENROUTER_API_KEY environment variable is not set. OpenRouter functionality will be simulated.")
+if not GEMINI_API_KEY:
+    logger.warning("GEMINI_API_KEY environment variable is not set. Direct Gemini API integration won't be available.")
 
 # Other app settings
 APP_TITLE = "ياسمين - المساعد الذكي"
 
-# --- Define Database Models ---
-class Conversation(Base):
-    __tablename__ = "conversations"
+# Ensure all models are imported so their tables will be created
+from models import Conversation, Message  # noqa: E402
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title: Mapped[str] = mapped_column(String(100), nullable=False, default="محادثة جديدة")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-    # Relationship with messages (one-to-many)
-    messages: Mapped[list["Message"]] = relationship(
-        "Message",
-        back_populates="conversation",
-        cascade="all, delete-orphan",
-        order_by="Message.created_at",
-        lazy="selectin"
-    )
-
-    def add_message(self, role: str, content: str):
-        """ Helper method to add a message to this conversation """
-        new_message = Message(
-            conversation_id=self.id,
-            role=role,
-            content=content
-        )
-        db.session.add(new_message)
-        self.updated_at = datetime.now(timezone.utc)
-        return new_message
-
-    def to_dict(self):
-        """ Serialize conversation and its messages to a dictionary """
-        return {
-            "id": str(self.id),
-            "title": self.title,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-            "messages": [message.to_dict() for message in self.messages]
-        }
-
-    def __repr__(self):
-        return f"<Conversation(id={self.id}, title='{self.title}')>"
-
-
-class Message(Base):
-    __tablename__ = "messages"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    conversation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("conversations.id"), nullable=False, index=True)
-    role: Mapped[str] = mapped_column(String(20), nullable=False)  # 'user' or 'assistant'
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-
-    # Back-reference to conversation (many-to-one)
-    conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
-
-    def to_dict(self):
-        """ Serialize message to a dictionary """
-        return {
-            "id": self.id,
-            "conversation_id": str(self.conversation_id),
-            "role": self.role,
-            "content": self.content,
-            "created_at": self.created_at.isoformat()
-        }
-
-    def __repr__(self):
-        return f"<Message(id={self.id}, role='{self.role}', conv_id={self.conversation_id})>"
-
-
-# --- Fallback responses (for when APIs fail) ---
-offline_responses = {
-    "السلام عليكم": "وعليكم السلام! أنا ياسمين. للأسف، لا يوجد اتصال بالإنترنت حالياً.",
-    "كيف حالك": "أنا بخير شكراً لك. لكن لا يمكنني الوصول للنماذج الذكية الآن بسبب انقطاع الإنترنت.",
-    "مرحبا": "أهلاً بك! أنا ياسمين. أعتذر، خدمة الإنترنت غير متوفرة حالياً.",
-    "شكرا": "على الرحب والسعة! أتمنى أن يعود الاتصال قريباً.",
-    "مع السلامة": "إلى اللقاء! آمل أن أتمكن من مساعدتك بشكل أفضل عند عودة الإنترنت."
-}
-default_offline_response = "أعتذر، لا يمكنني معالجة طلبك الآن. يبدو أن هناك مشكلة في الاتصال بالإنترنت أو بخدمات الذكاء الاصطناعي."
+# Create all tables if they don't exist
+with app.app_context():
+    db.create_all()
 
 # --- OpenRouter API function ---
-def call_openrouter_api(messages, model="gemini-1.5-pro", temperature=0.7):
+def call_openrouter_api(messages, model="gemini-1.5-pro", temperature=0.7, max_tokens=2000):
     """
     Call the OpenRouter API to generate a response
     Support for Gemini 1.5, Gemini Pro, Claude and GPT-4 models
@@ -154,6 +83,15 @@ def call_openrouter_api(messages, model="gemini-1.5-pro", temperature=0.7):
     # Convert our messages to the correct format
     formatted_messages = []
     
+    # Add system instruction optimized for Arabic responses if not present
+    has_system_message = any(msg.get("role") == "system" for msg in messages)
+    if not has_system_message:
+        formatted_messages.append({
+            "role": "system",
+            "content": "أنت مساعد ذكي ومفيد باللغة العربية اسمه ياسمين. أجب دائماً باللغة العربية الفصحى ما لم يطلب المستخدم لغة أخرى. قدم معلومات دقيقة وشاملة. تجنب الإجابات الطويلة جداً. اليوم هو 24 أبريل 2025."
+        })
+    
+    # Add the user messages
     for msg in messages:
         # Ensure roles are correctly formatted for OpenRouter
         role = msg["role"]
@@ -162,7 +100,7 @@ def call_openrouter_api(messages, model="gemini-1.5-pro", temperature=0.7):
             "content": msg["content"]
         })
     
-    # Special handling for Gemini 2 (upcoming models) and other Google models
+    # Special handling for Gemini models
     is_gemini = "gemini" in model.lower()
     
     # Build the request payload
@@ -170,25 +108,19 @@ def call_openrouter_api(messages, model="gemini-1.5-pro", temperature=0.7):
         "model": model,
         "messages": formatted_messages,
         "temperature": temperature,
-        "max_tokens": 2000
+        "max_tokens": max_tokens
     }
     
     # Add Gemini specific parameters if using a Gemini model
     if is_gemini:
         payload["top_p"] = 0.95
         payload["top_k"] = 40
-        # Add system instruction optimized for Arabic responses
-        if formatted_messages and formatted_messages[0]["role"] != "system":
-            formatted_messages.insert(0, {
-                "role": "system",
-                "content": "أنت مساعد ذكي ومفيد باللغة العربية اسمه ياسمين. أجب دائماً باللغة العربية الفصحى ما لم يطلب المستخدم لغة أخرى. قدم معلومات دقيقة وشاملة. تجنب الإجابات الطويلة جداً"
-            })
     
     # Set the headers with API key
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://yasmin-chat.replit.app",
+        "HTTP-Referer": "https://yasmin-chat.app",
         "X-Title": "Yasmin Chat App"
     }
     
@@ -214,8 +146,18 @@ def call_openrouter_api(messages, model="gemini-1.5-pro", temperature=0.7):
         logger.error(f"Error calling OpenRouter API: {e}")
         return None
 
+# --- Fallback responses (for when APIs fail) ---
+offline_responses = {
+    "السلام عليكم": "وعليكم السلام! أنا ياسمين. للأسف، لا يوجد اتصال بالإنترنت حالياً.",
+    "كيف حالك": "أنا بخير شكراً لك. لكن لا يمكنني الوصول للنماذج الذكية الآن بسبب انقطاع الإنترنت.",
+    "مرحبا": "أهلاً بك! أنا ياسمين. أعتذر، خدمة الإنترنت غير متوفرة حالياً.",
+    "شكرا": "على الرحب والسعة! أتمنى أن يعود الاتصال قريباً.",
+    "مع السلامة": "إلى اللقاء! آمل أن أتمكن من مساعدتك بشكل أفضل عند عودة الإنترنت."
+}
+default_offline_response = "أعتذر، لا يمكنني معالجة طلبك الآن. يبدو أن هناك مشكلة في الاتصال بالإنترنت أو بخدمات الذكاء الاصطناعي."
+
 # --- AI response generation with OpenRouter ---
-def generate_ai_response(messages_list, model="gemini-1.5-pro", temperature=0.7):
+def generate_ai_response(messages_list, model="gemini-1.5-pro", temperature=0.7, max_tokens=2000):
     """Generate an AI response based on the user's input using OpenRouter API or fallback"""
     if not messages_list:
         return "مرحباً! كيف يمكنني مساعدتك اليوم؟"
@@ -224,7 +166,7 @@ def generate_ai_response(messages_list, model="gemini-1.5-pro", temperature=0.7)
     user_message = messages_list[-1]["content"].lower() if messages_list[-1]["role"] == "user" else ""
     
     # Try to get a response from OpenRouter API
-    openrouter_response = call_openrouter_api(messages_list, model, temperature)
+    openrouter_response = call_openrouter_api(messages_list, model, temperature, max_tokens)
     
     # If we got a response from OpenRouter, return it
     if openrouter_response:
@@ -249,10 +191,9 @@ def generate_ai_response(messages_list, model="gemini-1.5-pro", temperature=0.7)
         return "يمكنني مساعدتك في العديد من الأمور مثل الإجابة على الأسئلة، وتقديم المعلومات، وإجراء محادثات، وتلخيص النصوص، وكتابة المحتوى، والمزيد. ما الذي ترغب في مساعدتي به؟"
     
     # Default response
-    return f"شكراً لرسالتك. أنا ياسمين، وأحاول أن أساعدك قدر المستطاع. يمكنك طرح أي سؤال وسأحاول الإجابة عليه."
+    return default_offline_response
 
 # --- API Routes ---
-
 @app.route('/')
 def index():
     """Render the main page"""
@@ -263,9 +204,7 @@ def get_conversations():
     """Get all conversations"""
     try:
         logger.info("جاري جلب المحادثات...")
-        conversations = db.session.execute(
-            select(Conversation).order_by(desc(Conversation.updated_at))
-        ).scalars().all()
+        conversations = Conversation.get_all_conversations()
         logger.info(f"تم جلب {len(conversations)} محادثة")
         
         return jsonify({
@@ -273,7 +212,7 @@ def get_conversations():
             "conversations": [conv.to_dict() for conv in conversations]
         })
     
-    except SQLAlchemyError as e:
+    except Exception as e:
         logger.error(f"Database error when fetching conversations: {e}")
         return jsonify({
             "success": False,
@@ -293,20 +232,19 @@ def create_conversation():
             "conversation": new_conversation.to_dict()
         })
     
-    except SQLAlchemyError as e:
+    except Exception as e:
         db.session.rollback()
         logger.error(f"Database error when creating conversation: {e}")
         return jsonify({
             "success": False,
-            "error": "حدث خطأ في قاعدة البيانات"
+            "error": "حدث خطأ في إنشاء محادثة جديدة"
         }), 500
 
-@app.route('/api/conversations/<uuid:conversation_id>', methods=['GET'])
+@app.route('/api/conversations/<conversation_id>', methods=['GET'])
 def get_conversation(conversation_id):
-    """Get a specific conversation"""
+    """Get a specific conversation by ID"""
     try:
-        conversation = db.session.get(Conversation, conversation_id)
-        
+        conversation = Conversation.get_by_id(conversation_id)
         if not conversation:
             return jsonify({
                 "success": False,
@@ -318,19 +256,55 @@ def get_conversation(conversation_id):
             "conversation": conversation.to_dict()
         })
     
-    except SQLAlchemyError as e:
-        logger.error(f"Database error when fetching conversation {conversation_id}: {e}")
+    except Exception as e:
+        logger.error(f"Error fetching conversation {conversation_id}: {e}")
         return jsonify({
             "success": False,
-            "error": "حدث خطأ في قاعدة البيانات"
+            "error": "حدث خطأ في استرجاع المحادثة"
         }), 500
 
-@app.route('/api/conversations/<uuid:conversation_id>', methods=['DELETE'])
+@app.route('/api/conversations/<conversation_id>', methods=['PUT'])
+def update_conversation(conversation_id):
+    """Update a conversation title"""
+    try:
+        data = request.get_json()
+        title = data.get('title')
+        
+        if not title:
+            return jsonify({
+                "success": False,
+                "error": "عنوان المحادثة مطلوب"
+            }), 400
+        
+        conversation = Conversation.get_by_id(conversation_id)
+        if not conversation:
+            return jsonify({
+                "success": False,
+                "error": "المحادثة غير موجودة"
+            }), 404
+        
+        conversation.title = title
+        conversation.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "conversation": conversation.to_dict()
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating conversation {conversation_id}: {e}")
+        return jsonify({
+            "success": False,
+            "error": "حدث خطأ في تحديث المحادثة"
+        }), 500
+
+@app.route('/api/conversations/<conversation_id>', methods=['DELETE'])
 def delete_conversation(conversation_id):
     """Delete a conversation"""
     try:
-        conversation = db.session.get(Conversation, conversation_id)
-        
+        conversation = Conversation.get_by_id(conversation_id)
         if not conversation:
             return jsonify({
                 "success": False,
@@ -345,149 +319,160 @@ def delete_conversation(conversation_id):
             "message": "تم حذف المحادثة بنجاح"
         })
     
-    except SQLAlchemyError as e:
+    except Exception as e:
         db.session.rollback()
-        logger.error(f"Database error when deleting conversation {conversation_id}: {e}")
+        logger.error(f"Error deleting conversation {conversation_id}: {e}")
         return jsonify({
             "success": False,
-            "error": "حدث خطأ في قاعدة البيانات"
+            "error": "حدث خطأ في حذف المحادثة"
         }), 500
 
-@app.route('/api/conversations/<uuid:conversation_id>/messages', methods=['POST'])
-def add_message(conversation_id):
-    """Add a message to a conversation"""
+@app.route('/api/conversations/<conversation_id>/messages', methods=['GET'])
+def get_messages(conversation_id):
+    """Get all messages for a conversation"""
     try:
-        data = request.json
-        
-        if not data or 'content' not in data:
-            return jsonify({
-                "success": False,
-                "error": "محتوى الرسالة مطلوب"
-            }), 400
-        
-        conversation = db.session.get(Conversation, conversation_id)
-        
+        conversation = Conversation.get_by_id(conversation_id)
         if not conversation:
             return jsonify({
                 "success": False,
                 "error": "المحادثة غير موجودة"
             }), 404
         
-        # Add user message
-        user_message = conversation.add_message('user', data['content'])
+        return jsonify({
+            "success": True,
+            "messages": [message.to_dict() for message in conversation.messages]
+        })
+    
+    except Exception as e:
+        logger.error(f"Error fetching messages for conversation {conversation_id}: {e}")
+        return jsonify({
+            "success": False,
+            "error": "حدث خطأ في استرجاع الرسائل"
+        }), 500
+
+@app.route('/api/conversations/<conversation_id>/messages', methods=['POST'])
+def create_message(conversation_id):
+    """Create a new message and get AI response"""
+    try:
+        data = request.get_json()
+        user_message = data.get('message')
+        model = data.get('model', 'gemini-1.5-pro')
+        temperature = float(data.get('temperature', 0.7))
+        max_tokens = int(data.get('max_tokens', 2000))
         
-        # Get all messages for context
-        messages_list = [
+        if not user_message:
+            return jsonify({
+                "success": False,
+                "error": "الرسالة مطلوبة"
+            }), 400
+        
+        conversation = Conversation.get_by_id(conversation_id)
+        if not conversation:
+            # Create a new conversation if it doesn't exist
+            conversation = Conversation(
+                id=uuid.UUID(conversation_id) if conversation_id != 'new' else uuid.uuid4(),
+                title="محادثة جديدة"
+            )
+            db.session.add(conversation)
+        
+        # Add user message to conversation
+        user_msg = Message(
+            conversation_id=conversation.id,
+            role="user",
+            content=user_message
+        )
+        db.session.add(user_msg)
+        
+        # Prepare conversation history for AI
+        conversation_history = [
             {"role": msg.role, "content": msg.content}
             for msg in conversation.messages
         ]
+        conversation_history.append({"role": "user", "content": user_message})
         
-        # Generate AI response (simple for now)
-        model = data.get('model', 'gpt-3.5-turbo')
-        temperature = float(data.get('temperature', 0.7))
-        
-        ai_response = generate_ai_response(messages_list, model, temperature)
+        # Get AI response
+        ai_response = generate_ai_response(conversation_history, model, temperature, max_tokens)
         
         # Add AI response to conversation
-        ai_message = conversation.add_message('assistant', ai_response)
+        ai_msg = Message(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=ai_response
+        )
+        db.session.add(ai_msg)
         
-        # Update conversation title if this is the first user message
+        # Update conversation title if it's the first message
         if len(conversation.messages) <= 2 and conversation.title == "محادثة جديدة":
-            # Extract a title from the first user message
-            title = data['content'][:30] + "..." if len(data['content']) > 30 else data['content']
+            # Use the first few words of user message as the title
+            words = user_message.split()
+            title = " ".join(words[:4]) + ("..." if len(words) > 4 else "")
             conversation.title = title
-        
+            
+        conversation.updated_at = datetime.now(timezone.utc)
         db.session.commit()
         
         return jsonify({
             "success": True,
-            "user_message": user_message.to_dict(),
-            "ai_message": ai_message.to_dict()
+            "conversation_id": str(conversation.id),
+            "messages": [
+                user_msg.to_dict(),
+                ai_msg.to_dict()
+            ]
         })
     
-    except SQLAlchemyError as e:
+    except Exception as e:
         db.session.rollback()
-        logger.error(f"Database error when adding message to conversation {conversation_id}: {e}")
+        logger.error(f"Error creating message for conversation {conversation_id}: {e}")
         return jsonify({
             "success": False,
-            "error": "حدث خطأ في قاعدة البيانات"
+            "error": "حدث خطأ في إنشاء الرسالة"
         }), 500
 
-@app.route('/api/conversations/<uuid:conversation_id>/regenerate', methods=['POST'])
-def regenerate_response(conversation_id):
-    """Regenerate the last AI response"""
+@app.route('/api/conversations/<conversation_id>/clear', methods=['POST'])
+def clear_conversation(conversation_id):
+    """Clear all messages from a conversation"""
     try:
-        data = request.json
-        conversation = db.session.get(Conversation, conversation_id)
-        
+        conversation = Conversation.get_by_id(conversation_id)
         if not conversation:
             return jsonify({
                 "success": False,
                 "error": "المحادثة غير موجودة"
             }), 404
         
-        messages = conversation.messages
+        # Delete all messages
+        Message.delete_by_conversation_id(conversation.id)
         
-        if not messages or len(messages) < 2:
-            return jsonify({
-                "success": False,
-                "error": "لا توجد رسائل كافية لإعادة التوليد"
-            }), 400
-        
-        # Get the last message
-        last_message = messages[-1]
-        
-        # Ensure the last message is from the assistant
-        if last_message.role != 'assistant':
-            return jsonify({
-                "success": False,
-                "error": "آخر رسالة ليست من المساعد"
-            }), 400
-        
-        # Get all messages except the last one for context
-        messages_list = [
-            {"role": msg.role, "content": msg.content}
-            for msg in messages[:-1]  # Exclude the last message
-        ]
-        
-        # Generate new AI response
-        model = data.get('model', 'gpt-3.5-turbo')
-        temperature = float(data.get('temperature', 0.7))
-        
-        new_response = generate_ai_response(messages_list, model, temperature)
-        
-        # Update the last message with the new response
-        last_message.content = new_response
-        last_message.created_at = datetime.now(timezone.utc)
+        # Reset conversation title
+        conversation.title = "محادثة جديدة"
         conversation.updated_at = datetime.now(timezone.utc)
-        
         db.session.commit()
         
         return jsonify({
             "success": True,
-            "regenerated_message": last_message.to_dict()
+            "message": "تم مسح المحادثة بنجاح"
         })
     
-    except SQLAlchemyError as e:
+    except Exception as e:
         db.session.rollback()
-        logger.error(f"Database error when regenerating response for conversation {conversation_id}: {e}")
+        logger.error(f"Error clearing conversation {conversation_id}: {e}")
         return jsonify({
             "success": False,
-            "error": "حدث خطأ في قاعدة البيانات"
+            "error": "حدث خطأ في مسح المحادثة"
         }), 500
 
+# Error handlers
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 errors"""
+    return jsonify({
+        "success": False,
+        "error": "الصفحة غير موجودة"
+    }), 404
 
-# --- Initialize Database ---
-def init_db():
-    with app.app_context():
-        try:
-            db.create_all()
-            logger.info("تم إنشاء قاعدة البيانات بنجاح")
-        except Exception as e:
-            logger.error(f"خطأ في إنشاء قاعدة البيانات: {e}")
-            raise
-
-init_db()
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+@app.errorhandler(500)
+def server_error(error):
+    """Handle 500 errors"""
+    return jsonify({
+        "success": False,
+        "error": "حدث خطأ في الخادم"
+    }), 500
