@@ -1,95 +1,50 @@
-import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, DateTime, ForeignKey, select, delete, desc
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID
 from app import db
 
 class Conversation(db.Model):
-    __tablename__ = "conversations"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title: Mapped[str] = mapped_column(String(100), nullable=False, default="محادثة جديدة")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-    # Relationship with messages (one-to-many)
-    messages: Mapped[list["Message"]] = relationship(
-        "Message",
-        back_populates="conversation",
-        cascade="all, delete-orphan",
-        order_by="Message.created_at",
-        lazy="selectin"
-    )
-
-    def add_message(self, role: str, content: str):
-        """ Helper method to add a message to this conversation """
-        new_message = Message(
-            conversation_id=self.id,
-            role=role,
-            content=content
-        )
-        db.session.add(new_message)
-        self.updated_at = datetime.now(timezone.utc)
-        return new_message
-
+    """Model for storing conversation metadata"""
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    last_updated = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Relationship with messages
+    messages = db.relationship('Message', backref='conversation', cascade='all, delete-orphan')
+    
+    def __repr__(self):
+        return f'<Conversation {self.id}: {self.title}>'
+        
     def to_dict(self):
-        """ Serialize conversation and its messages to a dictionary """
+        """Convert conversation to dictionary for JSON serialization"""
         return {
-            "id": str(self.id),
-            "title": self.title,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-            "messages": [message.to_dict() for message in self.messages]
+            'id': self.id,
+            'title': self.title,
+            'created_at': self.created_at.isoformat(),
+            'last_updated': self.last_updated.isoformat(),
+            'message_count': len(self.messages)
         }
-
+    
     @classmethod
     def get_by_id(cls, conversation_id):
-        """Get a conversation by ID"""
-        try:
-            uuid_id = uuid.UUID(conversation_id)
-            return db.session.execute(select(cls).filter_by(id=uuid_id)).scalar_one_or_none()
-        except (ValueError, TypeError):
-            return None
-
+        """Get conversation by ID"""
+        return cls.query.get(conversation_id)
+    
     @classmethod
     def get_all_conversations(cls):
-        """Get all conversations ordered by updated_at"""
-        return db.session.execute(
-            select(cls).order_by(desc(cls.updated_at))
-        ).scalars().all()
-
-    def __repr__(self):
-        return f"<Conversation(id={self.id}, title='{self.title}')>"
-
+        """Get all conversations ordered by last_updated"""
+        return cls.query.order_by(cls.last_updated.desc()).all()
 
 class Message(db.Model):
-    __tablename__ = "messages"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    conversation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("conversations.id"), nullable=False, index=True)
-    role: Mapped[str] = mapped_column(String(20), nullable=False)  # 'user' or 'assistant'
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-
-    # Back-reference to conversation (many-to-one)
-    conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
-
-    def to_dict(self):
-        """ Serialize message to a dictionary """
-        return {
-            "id": self.id,
-            "conversation_id": str(self.conversation_id),
-            "role": self.role,
-            "content": self.content,
-            "created_at": self.created_at.isoformat()
-        }
-
-    @classmethod
-    def delete_by_conversation_id(cls, conversation_id):
-        """Delete all messages for a conversation"""
-        db.session.execute(delete(cls).where(cls.conversation_id == conversation_id))
-        db.session.commit()
-
+    """Model for storing individual messages in a conversation"""
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey('conversation.id'), nullable=False)
+    role = db.Column(db.String(50), nullable=False)  # 'user' or 'assistant'
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    # Additional fields for feedback and extra data
+    feedback = db.Column(db.Boolean, nullable=True)  # Positive or negative feedback
+    message_metadata = db.Column(db.JSON, nullable=True)  # For storing additional information like tokens, model, etc.
+    
     def __repr__(self):
-        return f"<Message(id={self.id}, role='{self.role}', conv_id={self.conversation_id})>"
+        return f'<Message {self.id}: {self.role}>'
