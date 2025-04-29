@@ -43,7 +43,8 @@ app.config["SECRET_KEY"] = os.environ.get("SESSION_SECRET", "yasmin-dev-secret-k
 # === التعديل الرئيسي هنا: استخدام متغير البيئة لسلسلة اتصال قاعدة البيانات ===
 # Render سيقوم بتعيين متغير البيئة 'DATABASE_URL' تلقائياً عند ربط خدمة الويب بقاعدة بيانات PostgreSQL.
 # نستخدم os.environ.get للحصول على هذه القيمة، مع fallback لـ SQLite للتطوير المحلي إذا لم يتم تعيين المتغير.
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///yasmin.db")
+# قم بتغيير هذا لـ 'sqlite:///yasmin.db' فقط إذا كنت تريد تشغيل التطبيق محلياً بالـ SQLite ولا تستخدم متغير بيئة
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL") 
 # =========================================================================
 
 # تعطيل تتبع تعديلات الكائنات في SQLAlchemy لتجنب استهلاك الذاكرة غير الضروري
@@ -51,6 +52,12 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # تهيئة قاعدة البيانات مع إعدادات التطبيق
 db.init_app(app)
+
+# === تمت إزالة كتلة db.create_all() من هنا ===
+# يجب تشغيل db.create_all() أو migrations كخطوة منفصلة قبل بدء الخادم الرئيسي
+# انظر التعليمات أدناه حول إنشاء سكربت create_tables.py وتعديل أمر التشغيل في Render
+# ==============================================
+
 
 # تهيئة مدير تسجيل الدخول للمصادقة وإدارة المستخدمين
 login_manager = LoginManager()
@@ -78,17 +85,6 @@ def load_user(user_id):
     from models import User
     return User.query.get(int(user_id))
 
-# إنشاء جداول قاعدة البيانات إذا لم تكن موجودة بالفعل
-# هذا الجزء سيتم تنفيذه في كل مرة يبدأ فيها التطبيق.
-# إذا كنت متصلاً بقاعدة بيانات PostgreSQL على Render وكانت فارغة، فسيتم إنشاء الجداول.
-# إذا كانت الجداول موجودة بالفعل، فلن يتم فعل شيء.
-# ملاحظة: db.create_all() مناسب للإعداد الأولي، ولكن لإدارة التغييرات في مخطط القاعدة
-# على المدى الطويل، يُفضل استخدام أدوات مثل Alembic.
-with app.app_context():
-    db.create_all()
-    logger.info("Database tables checked/created using db.create_all().")
-
-
 # استيراد المسارات (Routes) بعد تهيئة التطبيق وقاعدة البيانات
 # تأكد من وجود ملف routes.py يحتوي على تعريف مسارات التطبيق
 from routes import *
@@ -102,4 +98,3 @@ from routes import *
 #     # استخدم المنفذ الذي تحدده Render أو المنفذ الافتراضي 5000 محلياً
 #     port = int(os.environ.get('PORT', 5000))
 #     socketio.run(app, debug=True, host='0.0.0.0', port=port)
-
