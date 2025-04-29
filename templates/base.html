@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#f0d7b9">
+    <title>{% block title %}ياسمين - مساعدك الذكي{% endblock %}</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Base Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    
+    <!-- Model Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/models.css') }}">
+    
+    <!-- Page Specific Styles -->
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <div class="status-bar">
+            <div class="menu-container">
+                <button id="menu-toggle" class="icon-button">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+                <div id="dropdown-menu" class="dropdown-menu">
+                    <button id="clear-chat-btn">
+                        <i class="fas fa-trash-alt"></i>
+                        مسح المحادثة
+                    </button>
+                    <button id="sidebar-toggle">
+                        <i class="fas fa-bars"></i>
+                        القائمة الجانبية
+                    </button>
+                </div>
+            </div>
+            <div class="status-bar-center">
+                <span>ياسمين</span>
+            </div>
+            <button id="mobile-menu-button" class="icon-button">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+        
+        <div id="settings-sidebar">
+            <div class="sidebar-header">
+                <h2>الإعدادات</h2>
+                <button class="close-button icon-button" id="close-sidebar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <button class="primary-button" id="new-conversation-btn">
+                <i class="fas fa-plus"></i>
+                محادثة جديدة
+            </button>
+
+            <div class="sidebar-section">
+                <h3>المحادثات السابقة</h3>
+                <div class="conversations-container" id="conversations-list">
+                    <!-- المحادثات ستضاف هنا ديناميكياً -->
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>الميزات المتقدمة</h3>
+                <div class="feature-buttons">
+                    <a href="{{ url_for('image_generator') }}" class="feature-button">
+                        <i class="fas fa-image"></i>
+                        توليد الصور
+                    </a>
+                    <a href="{{ url_for('code_generator') }}" class="feature-button">
+                        <i class="fas fa-code"></i>
+                        توليد الكود
+                    </a>
+                    <a href="{{ url_for('audio_generator') }}" class="feature-button">
+                        <i class="fas fa-music"></i>
+                        توليد الصوت
+                    </a>
+                    <a href="{{ url_for('image_recognition') }}" class="feature-button">
+                        <i class="fas fa-camera"></i>
+                        التعرف على الصور
+                    </a>
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3>مساعدين الذكاء الاصطناعي</h3>
+                <div class="assistant-models-list" id="model-select-container">
+                    <!-- OpenAI Models -->
+                    <div class="assistant-model" data-model="gpt-4o">
+                        <div class="model-logo openai-logo">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                        <div class="model-name">GPT-4o (OpenAI)</div>
+                    </div>
+                    <div class="assistant-model" data-model="gpt-3.5-turbo">
+                        <div class="model-logo openai-logo">
+                            <i class="fas fa-comment-alt"></i>
+                        </div>
+                        <div class="model-name">GPT-3.5 Turbo</div>
+                    </div>
+                    
+                    <!-- Google Gemini Models -->
+                    <div class="assistant-model" data-model="gemini-1.5-pro">
+                        <div class="model-logo google-logo">
+                            <i class="fab fa-google"></i>
+                        </div>
+                        <div class="model-name">Gemini 1.5 Pro</div>
+                    </div>
+                    <div class="assistant-model" data-model="gemini-1.5-flash">
+                        <div class="model-logo google-logo">
+                            <i class="fab fa-google"></i>
+                        </div>
+                        <div class="model-name">Gemini 1.5 Flash</div>
+                    </div>
+                    
+                    <!-- Anthropic Claude Models -->
+                    <div class="assistant-model" data-model="claude-3-5-sonnet-20241022">
+                        <div class="model-logo anthropic-logo">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="model-name">Claude 3.5 Sonnet</div>
+                    </div>
+                    <div class="assistant-model" data-model="claude-3-opus-20240229">
+                        <div class="model-logo anthropic-logo">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="model-name">Claude 3 Opus</div>
+                    </div>
+                    <div class="assistant-model" data-model="claude-3-sonnet-20240229">
+                        <div class="model-logo anthropic-logo">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="model-name">Claude 3 Sonnet</div>
+                    </div>
+                    <div class="assistant-model" data-model="claude-3-haiku-20240307">
+                        <div class="model-logo anthropic-logo">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="model-name">Claude 3 Haiku</div>
+                    </div>
+                    
+                    <!-- Meta Models via OpenRouter -->
+                    <div class="assistant-model" data-model="meta/llama-3-70b-instruct">
+                        <div class="model-logo meta-logo">
+                            <i class="fab fa-facebook"></i>
+                        </div>
+                        <div class="model-name">Llama 3 70B</div>
+                    </div>
+                    <div class="assistant-model" data-model="meta/llama-3-8b-instruct">
+                        <div class="model-logo meta-logo">
+                            <i class="fab fa-facebook"></i>
+                        </div>
+                        <div class="model-name">Llama 3 8B</div>
+                    </div>
+                </div>
+            </div>
+
+            {% if current_user.is_authenticated %}
+            <div class="sidebar-section">
+                <h3>الحساب</h3>
+                <div class="account-info">
+                    <div class="user-profile">
+                        <div class="user-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="user-details">
+                            <div class="username">{{ current_user.username }}</div>
+                            <div class="email">{{ current_user.email }}</div>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="logout-button">
+                        <i class="fas fa-sign-out-alt"></i>
+                        تسجيل الخروج
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="sidebar-section">
+                <h3>إعدادات الواجهة</h3>
+
+                <div class="setting-item">
+                    <label for="dark-mode-toggle">الوضع الليلي</label>
+                    <label class="switch">
+                        <input type="checkbox" id="dark-mode-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+
+                <div class="setting-item">
+                    <label for="text-to-speech-toggle">قراءة الردود صوتياً</label>
+                    <label class="switch">
+                        <input type="checkbox" id="text-to-speech-toggle" checked>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <span>© 2025 ياسمين</span>
+                <span>النسخة 1.0</span>
+            </div>
+        </div>
+        
+        <div id="sidebar-overlay"></div>
+    </div>
+
+    <div id="confirm-modal" class="modal">
+        <div class="modal-content">
+            <p id="confirm-message"></p>
+            <div class="modal-buttons">
+                <button id="confirm-action">نعم</button>
+                <button id="confirm-cancel">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+    
+    {% block scripts %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{{ url_for('static', filename='js/sidebar-models.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Toggle sidebar
+            document.getElementById('mobile-menu-button').addEventListener('click', function() {
+                document.body.classList.toggle('sidebar-active');
+            });
+            
+            document.getElementById('sidebar-toggle').addEventListener('click', function() {
+                document.body.classList.toggle('sidebar-active');
+            });
+            
+            document.getElementById('close-sidebar').addEventListener('click', function() {
+                document.body.classList.remove('sidebar-active');
+            });
+            
+            document.getElementById('sidebar-overlay').addEventListener('click', function() {
+                document.body.classList.remove('sidebar-active');
+            });
+            
+            // Toggle dropdown menu
+            document.getElementById('menu-toggle').addEventListener('click', function(e) {
+                e.stopPropagation();
+                document.getElementById('dropdown-menu').classList.toggle('active');
+            });
+            
+            // Close dropdown when clicking elsewhere
+            document.addEventListener('click', function() {
+                document.getElementById('dropdown-menu').classList.remove('active');
+            });
+            
+            // Toggle dark mode
+            const darkModeToggle = document.getElementById('dark-mode-toggle');
+            const currentMode = localStorage.getItem('darkMode') === 'true';
+            
+            // Set initial state
+            if (currentMode) {
+                document.body.classList.add('dark-mode');
+                darkModeToggle.checked = true;
+            }
+            
+            darkModeToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    document.body.classList.add('dark-mode');
+                    localStorage.setItem('darkMode', 'true');
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    localStorage.setItem('darkMode', 'false');
+                }
+            });
+            
+            // اختيار النماذج يتم معالجته في ملف sidebar-models.js
+        });
+    </script>
+    {% endblock %}
+</body>
+</html>

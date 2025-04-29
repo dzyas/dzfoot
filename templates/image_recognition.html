@@ -14,20 +14,22 @@
             </div>
         </div>
 
-        <div id="upload-container" class="upload-area">
-            <i class="fas fa-cloud-upload-alt upload-icon"></i>
-            <p class="upload-text">اسحب وأفلت صورة هنا أو انقر للاختيار</p>
-            <p class="upload-subtext">الصيغ المدعومة: JPG, JPEG, PNG, GIF (الحد الأقصى: 16 ميجابايت)</p>
-            <input type="file" id="image-upload" accept=".jpg,.jpeg,.png,.gif" hidden>
-        </div>
+        <form id="upload-form" enctype="multipart/form-data">
+            <div id="upload-container" class="upload-area">
+                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                <p class="upload-text">اسحب وأفلت صورة هنا أو انقر للاختيار</p>
+                <p class="upload-subtext">الصيغ المدعومة: JPG, JPEG, PNG, GIF (الحد الأقصى: 16 ميجابايت)</p>
+                <input type="file" id="image-input" name="image" accept=".jpg,.jpeg,.png,.gif" hidden>
+            </div>
 
-        <div id="image-preview" class="image-preview">
-            <img id="preview-image" src="" alt="معاينة الصورة">
-            <button id="analyze-button" class="action-button">
-                <i class="fas fa-search"></i>
-                تحليل الصورة
-            </button>
-        </div>
+            <div id="image-preview" class="image-preview">
+                <img id="preview-image" src="" alt="معاينة الصورة">
+                <button id="analyze-button" type="button" class="action-button">
+                    <i class="fas fa-search"></i>
+                    تحليل الصورة
+                </button>
+            </div>
+        </form>
 
         <div class="loading-spinner" id="loading-spinner"></div>
 

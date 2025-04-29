@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}صفحة غير موجودة - ياسمين{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-content">
+        <h1 class="error-code">404</h1>
+        <h2 class="error-title">الصفحة غير موجودة</h2>
+        <p class="error-message">عفوًا، لم نتمكن من العثور على الصفحة التي تبحث عنها.</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">العودة إلى الصفحة الرئيسية</a>
+    </div>
+</div>
+{% endblock %}

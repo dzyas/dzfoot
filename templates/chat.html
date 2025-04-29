@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_title }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- الرابط لملف الأنماط CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+
+</head>
+<body class="{{ 'dark-mode' if request.cookies.get('darkMode') == 'true' else '' }}">
+    <div class="app-container">
+         <!-- Sidebar Overlay -->
+         <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+         <!-- Sidebar -->
+        <div class="chat-sidebar" id="chat-sidebar">
+            <div class="sidebar-header">
+                <h2>الإعدادات</h2>
+                <button class="close-button icon-button" id="close-sidebar" aria-label="إغلاق القائمة الجانبية">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- New Conversation Button -->
+            <button class="primary-button" id="new-conversation-btn">
+                <i class="fas fa-plus"></i>
+                محادثة جديدة
+            </button>
+
+            <!-- Previous Conversations -->
+            <div class="sidebar-section">
+                <h3>
+                    المحادثات السابقة
+                    <!-- Clear and export buttons -->
+                    <span>
+                         <button class="icon-button" id="clear-current-chat-btn" title="مسح الرسائل في المحادثة الحالية">
+                              <i class="fas fa-broom"></i>
+                         </button>
+                         <button class="icon-button" id="export-chat-btn" title="تصدير المحادثة الحالية">
+                              <i class="fas fa-file-export"></i>
+                         </button>
+                    </span>
+                </h3>
+                <div class="conversations-container" id="conversations-list">
+                    <!-- المحادثات ستضاف هنا ديناميكياً بواسطة JavaScript -->
+                     <div class="empty-conversations">جاري تحميل المحادثات...</div>
+                </div>
+            </div>
+
+            <!-- Model Settings -->
+            <div class="sidebar-section">
+                <h3>إعدادات النموذج</h3>
+
+                <div class="setting-item">
+                    <label for="model-select">النموذج</label>
+                    <select id="model-select">
+                         <!-- Free Models -->
+                         <option value="mistralai/mistral-7b">Mistral 7B (Free)</option>
+                         <option value="mistralai/mistral-medium">Mistral Medium (Free)</option>
+                         <option value="phind/phind-codellama-34b">Phind CodeLlama 34B (Free)</option>
+                         <option value="meta-llama/codellama-34b">CodeLlama 34B (Free)</option>
+                         <option value="jondurbin/airoboros-l2-70b">Airoboros L2 70B (Free)</option>
+                         <!-- Existing Models -->
+                         <option value="openai/gpt-4o">GPT-4o (OpenAI)</option>
+                         <option value="openai/gpt-3.5-turbo">GPT-3.5 Turbo (OpenAI)</option>
+                         <option value="anthropic/claude-3-opus">Claude 3 Opus (Anthropic)</option>
+                         <option value="anthropic/claude-3-sonnet">Claude 3 Sonnet (Anthropic)</option>
+                         <option value="anthropic/claude-3-haiku">Claude 3 Haiku (Anthropic)</option>
+                         <option value="google/gemini-pro">Gemini Pro (Google)</option>
+                         <option value="meta-llama/llama-3-70b-instruct">Llama 3 70B (Meta)</option>
+                         <!-- يمكن إضافة/تعديل النماذج هنا أو جلبها ديناميكياً إذا كان API OpenRouter يوفر قائمة -->
+                    </select>
+                </div>
+
+                <div class="setting-item">
+                    <label for="temperature-slider">مستوى الإبداع</label>
+                    <div class="slider-container">
+                        <input type="range" id="temperature-slider" min="0" max="1" step="0.1" value="0.7">
+                        <span id="temperature-value">0.7</span>
+                    </div>
+                </div>
+
+                <div class="setting-item">
+                    <label for="max-tokens">الحد الأقصى من الرموز</label>
+                    <input type="number" id="max-tokens" min="100" max="4096" value="2000">
+                </div>
+            </div>
+
+            <!-- Interface Settings -->
+            <div class="sidebar-section">
+                <h3>إعدادات الواجهة</h3>
+
+                <div class="setting-item">
+                    <label for="dark-mode-toggle">الوضع الليلي</label>
+                    <label class="switch">
+                        <input type="checkbox" id="dark-mode-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+
+                <div class="setting-item">
+                    <label for="backup-voice-select">الصوت الاحتياطي</label>
+                    <select id="backup-voice-select" class="feature-select">
+                        <option value="browser">صوت المتصفح</option>
+                        <option value="EXAVITQu4vr4xnSDxMaL">آدم (صوت رجالي)</option>
+                        <option value="21m00Tcm4TlvDq8ikWAM">راشيل (صوت نسائي)</option>
+                        <option value="ONIBU1mnHqbNnNtBkZMM">أمير (صوت رجالي)</option>
+                        <option value="jsCqWAovK2LkecY7zXl4">سارة (صوت نسائي)</option>
+                        <option value="D38z5RcWu1voky8WS1ja">ياسر (صوت رجالي)</option>
+                        <option value="MF3mGyEYCl7XYWbV9V6O">ريم (صوت نسائي)</option>
+                        <option value="AZnfR2HGKN8RqxVXCG4L">طارق (صوت رجالي)</option>
+                    </select>
+                </div>
+
+                <div class="setting-item">
+                    <label for="text-to-speech-toggle">قراءة الردود صوتياً</label>
+                    <label class="switch">
+                        <input type="checkbox" id="text-to-speech-toggle" checked>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+
+                <div class="setting-item">
+                    <label for="use-browser-tts">استخدام المتصفح للنطق</label>
+                    <label class="switch">
+                        <input type="checkbox" id="use-browser-tts">
+                        <span class="slider round"></span>
+                    </label>
+                    <div class="setting-note">
+                        <small>استخدم هذا الخيار إذا كانت الأصوات التي يوفرها ElevenLabs لا تنطق العربية بشكل صحيح أو كانت الخدمة غير متاحة.</small>
+                    </div>
+                </div>
+
+                 <!-- ElevenLabs Voice Select (Conditional based on Flask variable) -->
+                {% if elevenlabs_available %}
+                <div class="setting-item voice-settings" id="elevenlabs-voices">
+                    <label for="voice-select">اختر الصوت</label>
+                    <select id="voice-select">
+                        <option value="EXAVITQu4vr4xnSDxMaL">آدم</option>
+                        <option value="21m00Tcm4TlvDq8ikWAM">راشيل</option>
+                        <option value="ONIBU1mnHqbNnNtBkZMM">أمير</option>
+                        <option value="jsCqWAovK2LkecY7zXl4">سارة</option>
+                        <option value="XrExE9yKIg1WjnnlVkGX">فهد</option>
+                        <option value="SOYHLrjzK2X1ezoPC6cr">ليلى</option>
+                        <option value="pNInz6obpgDQGcFmaJgB">هدى</option>
+                        <option value="29vD33N1CtxCmqQRPOHJ">نور</option>
+                        <option value="D38z5RcWu1voky8WS1ja">ياسر</option>
+                        <option value="MF3mGyEYCl7XYWbV9V6O">ريم</option>
+                        <option value="AZnfR2HGKN8RqxVXCG4L">طارق</option>
+                         <!-- More voices can be added here or populated by JS if API supports listing -->
+                    </select>
+                </div>
+                {% else %}
+                <div class="setting-note">
+                    <small>* ميزة ElevenLabs غير متاحة حاليًا. يلزم مفتاح API من ElevenLabs في متغيرات البيئة.</small>
+                    <small>يتم استخدام النطق من المتصفح كبديل تلقائياً.</small>
+                </div>
+                {% endif %}
+            </div>
+
+             <!-- Footer -->
+            <div class="sidebar-footer">
+                <span>© 2025 ياسمين</span>
+                <span>النسخة 1.0</span>
+            </div>
+        </div>
+
+         <!-- Floating Settings Toggle Button -->
+         <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" aria-label="فتح الإعدادات">
+             <i class="fas fa-cog"></i>
+         </button>
+
+        <!-- Chat Main Area -->
+        <div class="chat-main">
+            <div class="messages-container">
+                <div id="messages">
+                    <!-- سيتم إضافة الرسائل ديناميكياً -->
+                </div>
+            </div>
+            
+            <div class="fixed-input-area">
+                <div id="input-container">
+                    <button id="send-button" class="icon-button">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                    <textarea id="message-input" placeholder="اكتب رسالتك هنا..." rows="1"></textarea>
+                    <button id="emoji-button" class="icon-button">
+                        <i class="far fa-smile"></i>
+                    </button>
+                    <button id="mic-button" class="icon-button" aria-label="تسجيل صوتي">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                </div>
+                <div class="emoji-picker" id="emoji-picker">
+                    <!-- سيتم إضافة الإيموجي بواسطة جافا سكريبت -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+     <!-- Modal for Confirmations -->
+     <div id="confirm-modal" class="modal">
+         <div class="modal-content">
+             <p id="confirm-message"></p>
+             <div class="modal-buttons">
+                 <button id="confirm-action">نعم</button>
+                 <button id="confirm-cancel">إلغاء</button>
+             </div>
+         </div>
+     </div>
+
+     <!-- Container for Toast Notifications -->
+     <div id="toast-container"></div>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>

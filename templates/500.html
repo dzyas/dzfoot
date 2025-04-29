@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}خطأ في الخادم - ياسمين{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-content">
+        <h1 class="error-code">500</h1>
+        <h2 class="error-title">خطأ في الخادم</h2>
+        <p class="error-message">عفوًا، حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى لاحقًا.</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">العودة إلى الصفحة الرئيسية</a>
+    </div>
+</div>
+{% endblock %}

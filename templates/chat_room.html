@@ -1,0 +1,48 @@
+
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/chat_room.css') }}">
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+{% endblock %}
+
+{% block title %}غرفة الدردشة{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+    <main id="chat-area" style="display: none;">
+        <div class="chat-header">
+            <h2>غرفة الدردشة</h2>
+            <div id="status-message" class="status-message">متصل</div>
+        </div>
+
+        <div id="messages-box" class="chat-messages-frame">
+            <!-- الرسائل ستضاف هنا -->
+        </div>
+
+        <div id="typing-indicator"></div>
+
+        <div class="chat-input-group">
+            <input type="text" id="message-input" placeholder="اكتب رسالة..." autocomplete="off">
+            <button id="send-button" class="btn">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </main>
+
+    <div id="join-area">
+        <h2>انضم إلى الدردشة</h2>
+        <div class="join-form">
+            <input type="text" id="username-input" placeholder="أدخل اسمك" autocomplete="off">
+            <button id="join-button" class="btn">انضمام</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chat_room.js') }}"></script>
+{% endblock %}
