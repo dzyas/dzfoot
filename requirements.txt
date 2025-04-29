@@ -14,7 +14,8 @@ Pillow
 eventlet
 Flask-Login
 Flask-SocketIO
-google-generativeai  # تم إضافة هذا السطر
-
-# إذا كانت مكتبة openai_service المحلية تعتمد على مكتبة openai الرسمية، قم بإزالة التعليق من السطر التالي
-# openai
+google-generativeai
+anthropic
+elevenlabs
+openai
+python-magic
