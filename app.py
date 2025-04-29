@@ -1,4 +1,3 @@
---- START OF FILE app.py ---
 
 import os
 import logging
@@ -104,4 +103,3 @@ from routes import *
 #     port = int(os.environ.get('PORT', 5000))
 #     socketio.run(app, debug=True, host='0.0.0.0', port=port)
 
---- END OF FILE app.py ---
