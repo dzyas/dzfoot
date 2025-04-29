@@ -12,5 +12,7 @@ numpy
 opencv-python
 Pillow
 eventlet
+Flask-Login  # تم إضافة هذا السطر
+
 # إذا كانت مكتبة openai_service المحلية تعتمد على مكتبة openai الرسمية، قم بإزالة التعليق من السطر التالي
 # openai
