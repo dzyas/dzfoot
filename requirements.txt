@@ -1,8 +1,16 @@
 Flask
 Flask-SQLAlchemy
 Flask-Session
-psycopg2-binary  # أو psycopg2
+psycopg2-binary
 python-dotenv
 requests
-gunicorn         # للنشر (اختياري للتطوير المحلي)
+gunicorn
 email-validator
+stability-sdk
+googletrans
+numpy
+opencv-python
+Pillow
+eventlet
+# إذا كانت مكتبة openai_service المحلية تعتمد على مكتبة openai الرسمية، قم بإزالة التعليق من السطر التالي
+# openai
