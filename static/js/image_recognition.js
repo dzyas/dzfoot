@@ -1,28 +1,23 @@
 // Image Recognition JavaScript
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Elements from original code
+    // Elements
+    const uploadForm = document.getElementById('upload-form');
     const uploadContainer = document.getElementById('upload-container');
-    const imageUpload = document.getElementById('image-upload');
+    const imageInput = document.getElementById('image-input');
     const imagePreview = document.getElementById('image-preview');
+    const previewImage = document.getElementById('preview-image');
     const analyzeButton = document.getElementById('analyze-button');
     const loadingSpinner = document.getElementById('loading-spinner');
     const recognitionResults = document.getElementById('recognition-results');
     const descriptionTab = document.getElementById('description-tab');
     const detailsTab = document.getElementById('details-tab');
-    const objectsTab = document.getElementById('objects-tab');
     const objectsList = document.getElementById('objects-list');
     const annotatedImageContainer = document.getElementById('annotated-image-container');
     const tabs = document.querySelectorAll('.result-tab');
     const tabContents = document.querySelectorAll('.tab-content');
     
-    // Elements and form from edited code
-    const uploadForm = document.getElementById('upload-form');
-    const imageInput = document.getElementById('image-input');
-    const resultContainer = document.getElementById('result-container');
-
-
-    // Tab functionality (from original code)
+    // Tab functionality
     tabs.forEach(tab => {
         tab.addEventListener('click', function() {
             tabs.forEach(t => t.classList.remove('active'));
@@ -33,13 +28,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Hide results initially (from original code)
+    // Hide results initially
     recognitionResults.style.display = 'none';
     imagePreview.style.display = 'none';
 
-    // Event listeners for file upload (adapted from original and edited code)
+    // Event listeners for file upload
     uploadContainer.addEventListener('click', function() {
-        imageInput.click(); // Use imageInput from edited code
+        imageInput.click();
     });
 
     uploadContainer.addEventListener('dragover', function(e) {
@@ -59,16 +54,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    imageInput.addEventListener('change', function() { // Use imageInput from edited code
+    imageInput.addEventListener('change', function() {
         if (this.files.length) {
             handleFileSelect(this.files[0]);
         }
     });
 
-    // Analyze button (from original code)
+    // Analyze button
     analyzeButton.addEventListener('click', analyzeImage);
 
-    // Handle file selection (from original code)
+    // Handle file selection
     function handleFileSelect(file) {
         const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
         if (!validTypes.includes(file.type)) {
@@ -93,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function() {
         reader.readAsDataURL(file);
     }
 
-    // Analyze image function (modified from original and edited code)
+    // Analyze image function
     async function analyzeImage() {
         if (!previewImage.src) {
             showToast('يرجى تحميل صورة أولًا', 'error');
@@ -104,19 +99,24 @@ document.addEventListener('DOMContentLoaded', function() {
         recognitionResults.style.display = 'none';
 
         const formData = new FormData();
-        const file = imageInput.files[0]; // Use imageInput from edited code
-        formData.append('image', file);
+        formData.append('image', imageInput.files[0]);
 
         try {
             const response = await fetch('/api/upload-image', {
                 method: 'POST',
                 body: formData
             });
+            
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            
             const data = await response.json();
 
             if (data.error) {
                 throw new Error(data.error);
             }
+            
             displayResults(data);
             recognitionResults.style.display = 'block';
             showToast('تم تحليل الصورة بنجاح', 'success');
@@ -129,175 +129,90 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Display results function (from edited code, with some adaptations)
+    // Display results function
     function displayResults(data) {
-        imagePreview.src = data.file_url || previewImage.src; // Use file_url if available, fallback to existing preview
-        imagePreview.style.display = 'block';
-
-        if (data.analysis) {
-            const analysis = data.analysis;
-            let detailsHtml = '<div class="analysis-result">';
-
-            detailsHtml += `
-                <h3 class="analysis-title">معلومات أساسية</h3>
-                <div class="analysis-detail">
-                    <span class="analysis-label">الأبعاد:</span>
-                    <span class="analysis-value">${analysis.dimensions || 'غير متوفر'}</span>
-                </div>
-                <div class="analysis-detail">
-                    <span class="analysis-label">الصيغة:</span>
-                    <span class="analysis-value">${analysis.format || 'غير متوفر'}</span>
-                </div>
-                <div class="analysis-detail">
-                    <span class="analysis-label">وضع الألوان:</span>
-                    <span class="analysis-value">${analysis.mode || 'غير متوفر'}</span>
-                </div>
-            `;
-
-            if (analysis.average_color || analysis.dominant_color) {
-                detailsHtml += '<h3 class="analysis-title">تحليل الألوان</h3>';
-                if (analysis.average_color) {
-                    const avgColor = Array.isArray(analysis.average_color)
-                        ? `rgb(${analysis.average_color[0]}, ${analysis.average_color[1]}, ${analysis.average_color[2]})`
-                        : 'غير متوفر';
-                    detailsHtml += `
-                        <div class="analysis-detail">
-                            <span class="analysis-label">متوسط اللون:</span>
-                            <span class="analysis-value">
-                                <span class="color-sample" style="background-color: ${avgColor}"></span>
-                                ${avgColor}
-                            </span>
-                        </div>
-                    `;
-                }
-                if (analysis.dominant_color) {
-                    const domColor = Array.isArray(analysis.dominant_color)
-                        ? `rgb(${analysis.dominant_color[0]}, ${analysis.dominant_color[1]}, ${analysis.dominant_color[2]})`
-                        : 'غير متوفر';
-                    detailsHtml += `
-                        <div class="analysis-detail">
-                            <span class="analysis-label">اللون السائد:</span>
-                            <span class="analysis-value">
-                                <span class="color-sample" style="background-color: ${domColor}"></span>
-                                ${domColor}
-                            </span>
-                        </div>
-                    `;
-                }
-            }
-            if (analysis.exif && Object.keys(analysis.exif).length > 0) {
-                detailsHtml += '<h3 class="analysis-title">بيانات EXIF</h3>';
-                for (const [key, value] of Object.entries(analysis.exif)) {
-                    detailsHtml += `
-                        <div class="analysis-detail">
-                            <span class="analysis-label">${key}:</span>
-                            <span class="analysis-value">${value}</span>
-                        </div>
-                    `;
-                }
-            }
-            detailsHtml += '</div>';
-            detailsTab.innerHTML = detailsHtml;
-
-            const style = document.createElement('style');
-            style.textContent = `
-                .color-sample {
-                    display: inline-block;
-                    width: 20px;
-                    height: 20px;
-                    border-radius: 4px;
-                    margin-left: 8px;
-                    vertical-align: middle;
-                    border: 1px solid rgba(0,0,0,0.1);
-                }
-            `;
-            document.head.appendChild(style);
-        }
-
-
-        //Rest of displayResults from original code (Objects tab, etc.)
         // Description tab
         if (data.description) {
-            descriptionTab.innerHTML = `
-                <div class="result-content">
-                    <p>${formatText(data.description)}</p>
+            descriptionTab.innerHTML = formatText(data.description);
+        } else {
+            descriptionTab.innerHTML = '<p class="no-data">لم يتم العثور على وصف.</p>';
+        }
+
+        // Details tab
+        if (data.technical_details) {
+            const detailsHtml = `
+                <h3>تفاصيل الصورة التقنية</h3>
+                <div class="details-table">
+                    <div class="detail-row">
+                        <div class="detail-label">الأبعاد</div>
+                        <div class="detail-value">${data.technical_details.dimensions || 'غير متوفر'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">الحجم</div>
+                        <div class="detail-value">${data.technical_details.size || 'غير متوفر'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">نوع الملف</div>
+                        <div class="detail-value">${data.technical_details.format || 'غير متوفر'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">تاريخ الإنشاء</div>
+                        <div class="detail-value">${data.technical_details.date || 'غير متوفر'}</div>
+                    </div>
                 </div>
             `;
+            detailsTab.innerHTML = detailsHtml;
         } else {
-            descriptionTab.innerHTML = '<p>لا يمكن توليد وصف للصورة.</p>';
+            detailsTab.innerHTML = '<p class="no-data">لم يتم العثور على تفاصيل تقنية.</p>';
         }
 
         // Objects tab
-        if (data.detection) {
-            const detection = data.detection;
-
-            // Objects list
-            if (detection.objects_detected && detection.objects_detected.length > 0) {
-                let objectsHtml = '<div class="objects-detected">';
-
-                objectsHtml += `<h3 class="analysis-title">تم اكتشاف ${detection.object_count} عنصر</h3>`;
-
-                objectsHtml += '<div class="objects-tags">';
-                for (const object of detection.objects_detected) {
-                    objectsHtml += `<span class="object-tag">${object}</span>`;
-                }
-                objectsHtml += '</div>';
-
-                objectsHtml += '</div>';
-
-                objectsList.innerHTML = objectsHtml;
-            } else {
-                objectsList.innerHTML = '<p>لم يتم اكتشاف أي كائنات في الصورة.</p>';
-            }
-
-            // Annotated image comparison
-            if (detection.annotated_image) {
-                annotatedImageContainer.innerHTML = `
-                    <div class="image-column">
-                        <img src="${previewImage.src}" alt="الصورة الأصلية">
-                        <div class="image-label">الصورة الأصلية</div>
-                    </div>
-                    <div class="image-column">
-                        <img src="/static/uploads/${detection.annotated_image.split('/').pop()}" alt="الصورة المشروحة">
-                        <div class="image-label">الصورة المشروحة</div>
-                    </div>
-                `;
-            }
+        if (data.detected_objects && data.detected_objects.length > 0) {
+            const objectsHtml = data.detected_objects.map(obj => {
+                return `<div class="detected-object">
+                    <div class="object-name">${obj.name}</div>
+                    <div class="object-confidence">الثقة: ${Math.round(obj.confidence * 100)}%</div>
+                </div>`;
+            }).join('');
+            
+            objectsList.innerHTML = `
+                <h3>الكائنات المكتشفة (${data.detected_objects.length})</h3>
+                <div class="objects-container">${objectsHtml}</div>
+            `;
         } else {
-            objectsList.innerHTML = '<p>لا يمكن اكتشاف كائنات في هذه الصورة.</p>';
+            objectsList.innerHTML = '<p class="no-data">لم يتم اكتشاف كائنات.</p>';
+        }
+
+        // Annotated image
+        if (data.annotated_image_url) {
+            const originalImg = document.createElement('div');
+            originalImg.className = 'image-wrapper';
+            originalImg.innerHTML = `
+                <img src="${previewImage.src}" alt="الصورة الأصلية">
+                <div class="image-label">الصورة الأصلية</div>
+            `;
+
+            const annotatedImg = document.createElement('div');
+            annotatedImg.className = 'image-wrapper';
+            annotatedImg.innerHTML = `
+                <img src="${data.annotated_image_url}" alt="الصورة مع تحديد الكائنات">
+                <div class="image-label">الكائنات المحددة</div>
+            `;
+
+            annotatedImageContainer.innerHTML = '';
+            annotatedImageContainer.appendChild(originalImg);
+            annotatedImageContainer.appendChild(annotatedImg);
         }
     }
 
-
-    // Format text function (from original code)
+    // Function to format text with markdown
     function formatText(text) {
-        if (!text) return '';
-        let escaped = text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-        escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
-        escaped = escaped.replace(/\n/g, '<br>');
-        return escaped;
+        // Basic markdown formatting
+        let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        formatted = formatted.replace(/`(.*?)`/g, '<code>$1</code>');
+        formatted = formatted.replace(/\n/g, '<br>');
+        
+        return formatted;
     }
-
-    // Reset button functionality (from original code)
-    const resetButton = document.createElement('button');
-    resetButton.className = 'action-button';
-    resetButton.style.marginRight = '10px';
-    resetButton.innerHTML = '<i class="fas fa-redo"></i> صورة جديدة';
-    resetButton.addEventListener('click', function() {
-        imagePreview.style.display = 'none';
-        uploadContainer.style.display = 'block';
-        recognitionResults.style.display = 'none';
-        previewImage.src = '';
-        imageInput.value = ''; // Use imageInput from edited code
-        descriptionTab.innerHTML = '';
-        detailsTab.innerHTML = '';
-        objectsList.innerHTML = '';
-        annotatedImageContainer.innerHTML = '';
-    });
-
-    analyzeButton.parentNode.insertBefore(resetButton, analyzeButton);
 });

@@ -140,79 +140,58 @@ document.addEventListener('DOMContentLoaded', function() {
         codeDisplay.className = 'code-display';
         
         const pre = document.createElement('pre');
+        pre.className = `language-${language}`;
         pre.textContent = formattedCode;
         
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'copy-code-btn';
-        copyBtn.innerHTML = '<i class="fas fa-copy"></i> نسخ';
-        copyBtn.addEventListener('click', function() {
-            navigator.clipboard.writeText(formattedCode)
-                .then(() => showToast('تم نسخ الكود', 'success'))
-                .catch(() => showToast('فشل نسخ الكود', 'error'));
+        const copyButton = document.createElement('button');
+        copyButton.className = 'copy-button';
+        copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+        copyButton.title = 'نسخ الكود';
+        
+        copyButton.addEventListener('click', function() {
+            navigator.clipboard.writeText(formattedCode).then(function() {
+                showToast('تم نسخ الكود بنجاح', 'success');
+                
+                // Visual feedback for copy
+                copyButton.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(function() {
+                    copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                }, 1500);
+            }).catch(function() {
+                showToast('فشل نسخ الكود', 'error');
+            });
         });
         
-        codeDisplay.appendChild(copyBtn);
         codeDisplay.appendChild(pre);
-        
-        // Create explanation section if there's content outside code blocks
-        let explanation = "";
-        if (match) {
-            // Get content before the code block
-            const beforeCode = code.substring(0, match.index);
-            // Get content after the code block
-            const afterCode = code.substring(match.index + match[0].length);
-            
-            explanation = (beforeCode + afterCode).trim();
-        }
+        codeDisplay.appendChild(copyButton);
         
         // Clear previous results
         codeResult.innerHTML = '';
-        
-        // Add code display
         codeResult.appendChild(codeDisplay);
         
-        // Add explanation if available
-        if (explanation) {
-            const explanationDiv = document.createElement('div');
-            explanationDiv.className = 'code-explanation';
-            explanationDiv.innerHTML = formatText(explanation);
-            codeResult.appendChild(explanationDiv);
+        // Apply syntax highlighting if available
+        if (window.Prism) {
+            Prism.highlightElement(pre);
         }
     }
     
-    // Format text with basic markdown
-    function formatText(text) {
-        if (!text) return '';
-        
-        // Basic HTML escaping
-        let escaped = text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-        
-        // Code blocks (already handled separately)
-        escaped = escaped.replace(/```([\s\S]*?)```/g, '');
-        
-        // Inline code
-        escaped = escaped.replace(/`([^`]+)`/g, '<code>$1</code>');
-        
-        // Bold text
-        escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        
-        // Italic text
-        escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
-        
-        // Line breaks
-        escaped = escaped.replace(/\n/g, '<br>');
-        
-        return escaped;
-    }
-    
-    // Handle Ctrl+Enter to generate
+    // Handle Enter key in textarea
     codeDescription.addEventListener('keydown', function(e) {
+        // Check if Ctrl+Enter or Shift+Enter was pressed
         if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
             e.preventDefault();
             generateCode();
         }
     });
+    
+    // Function to format text with markdown
+    function formatText(text) {
+        // Basic markdown formatting
+        let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        formatted = formatted.replace(/`(.*?)`/g, '<code>$1</code>');
+        formatted = formatted.replace(/\n/g, '<br>');
+        
+        return formatted;
+    }
 });

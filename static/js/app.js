@@ -65,11 +65,32 @@ function initializeApp() {
 }
 
 function loadSettings() {
-    // Apply dark mode if enabled
+    // تطبيق الوضع الداكن إذا كان مفعلاً
     if (darkMode) {
         document.body.classList.add('dark-mode');
         darkModeToggle.checked = true;
     }
+    
+    // تحميل التخصيصات المحفوظة
+    const customFont = localStorage.getItem('customFont') || 'Cairo';
+    const customColor = localStorage.getItem('customColor') || '#4361ee';
+    
+    document.documentElement.style.setProperty('--font-family', customFont);
+    document.documentElement.style.setProperty('--primary-color', customColor);
+    
+    if (fontSelect) fontSelect.value = customFont;
+    if (colorPicker) colorPicker.value = customColor;
+}
+
+function updateCustomization(type, value) {
+    if (type === 'font') {
+        document.documentElement.style.setProperty('--font-family', value);
+        localStorage.setItem('customFont', value);
+    } else if (type === 'color') {
+        document.documentElement.style.setProperty('--primary-color', value);
+        localStorage.setItem('customColor', value);
+    }
+}
     
     // Set text-to-speech toggle
     textToSpeechToggle.checked = textToSpeechEnabled;
@@ -276,22 +297,34 @@ function changeVoice() {
 }
 
 function changeModel() {
-    currentModel = modelSelect.value;
-    localStorage.setItem('model', currentModel);
-    
-    // Show information about the selected model
-    let modelInfo = '';
-    if (currentModel.includes('gemini')) {
-        modelInfo = 'استخدام نموذج Gemini من Google';
-    } else if (currentModel.includes('claude')) {
-        modelInfo = 'استخدام نموذج Claude من Anthropic';
-    } else if (currentModel.includes('gpt-4')) {
-        modelInfo = 'استخدام نموذج GPT-4 من OpenAI';
-    } else {
-        modelInfo = 'استخدام نموذج ' + currentModel;
+    // This is called when the dropdown modelSelect is changed
+    if (modelSelect) {
+        currentModel = modelSelect.value;
+        localStorage.setItem('model', currentModel);
+        
+        // Show information about the selected model
+        let modelInfo = '';
+        if (currentModel.includes('gemini')) {
+            modelInfo = 'استخدام نموذج Gemini من Google';
+        } else if (currentModel.includes('claude')) {
+            modelInfo = 'استخدام نموذج Claude من Anthropic';
+        } else if (currentModel.includes('gpt-4')) {
+            modelInfo = 'استخدام نموذج GPT-4 من OpenAI';
+        } else {
+            modelInfo = 'استخدام نموذج ' + currentModel;
+        }
+        
+        showToast(modelInfo, 'info');
     }
     
-    showToast(modelInfo, 'info');
+    // Also check if model was changed via sidebar
+    const savedModel = localStorage.getItem('model');
+    if (savedModel && savedModel !== currentModel) {
+        currentModel = savedModel;
+        if (modelSelect) {
+            modelSelect.value = currentModel;
+        }
+    }
 }
 
 function updateTemperature() {
@@ -352,34 +385,40 @@ function toggleRecording() {
 
 function sendMessage() {
     const message = messageInput.value.trim();
-    if (!message || isGeneratingResponse) return;
     
-    // Clear input
-    messageInput.value = '';
-    autoResizeInput();
+    if (!message || isGeneratingResponse) {
+        return;
+    }
     
     // Add user message to UI
     addMessageToUI('user', message);
     
+    // Clear input
+    messageInput.value = '';
+    messageInput.style.height = 'auto';
+    
     // Show typing indicator
     showTypingIndicator();
     
-    // Set flag to prevent multiple requests
+    // Set generating flag
     isGeneratingResponse = true;
     
-    // Send to backend API
+    // Get the conversation ID (may be null for new conversations)
+    const conversationData = {
+        message: message,
+        conversation_id: currentConversationId,
+        model: currentModel,
+        temperature: currentTemperature,
+        max_tokens: currentMaxTokens
+    };
+    
+    // Send request to the server
     fetch('/api/chat', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            message: message,
-            conversation_id: currentConversationId,
-            model: currentModel,
-            temperature: currentTemperature,
-            max_tokens: currentMaxTokens
-        }),
+        body: JSON.stringify(conversationData)
     })
     .then(response => {
         if (!response.ok) {
@@ -394,21 +433,24 @@ function sendMessage() {
         // Add assistant response to UI
         addMessageToUI('assistant', data.message);
         
-        // Update conversation ID if new
-        if (!currentConversationId) {
+        // Update conversation ID if this was a new conversation
+        if (!currentConversationId && data.conversation_id) {
             currentConversationId = data.conversation_id;
-            loadConversations(); // Refresh the conversations list
+            localStorage.setItem('currentConversationId', currentConversationId);
+            
+            // Add to conversations list
+            loadConversations();
         }
         
-        // Text to speech if enabled
+        // If TTS is enabled, speak the response
         if (textToSpeechEnabled) {
             speakText(data.message);
         }
     })
     .catch(error => {
-        console.error('Error sending message:', error);
+        console.error('Error:', error);
         removeTypingIndicator();
-        showToast('حدث خطأ أثناء إرسال الرسالة', 'error');
+        showToast('حدث خطأ أثناء إرسال الرسالة. يرجى المحاولة مرة أخرى.', 'error');
     })
     .finally(() => {
         isGeneratingResponse = false;
@@ -416,147 +458,113 @@ function sendMessage() {
 }
 
 function addMessageToUI(role, content) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message-bubble ${role}`;
+    const messageElement = document.createElement('div');
+    messageElement.className = `message-bubble ${role}`;
     
-    // Create avatar
-    const avatar = document.createElement('div');
-    avatar.className = 'message-avatar';
-    const avatarImg = document.createElement('img');
-    avatarImg.src = role === 'user' 
-        ? '/static/img/user-avatar.jpg' 
-        : '/static/img/yasmin-avatar.png';
-    avatar.appendChild(avatarImg);
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.innerHTML = formatMessageContent(content);
     
-    // Create message content
-    const messageContent = document.createElement('div');
-    messageContent.className = 'message-content';
+    messageElement.appendChild(contentDiv);
     
-    // Format message content with Markdown-like parsing
-    const formattedContent = formatMessageContent(content);
-    messageContent.innerHTML = formattedContent;
-    
-    // Create time display
-    const timeElement = document.createElement('div');
-    timeElement.className = 'message-time';
-    const now = new Date();
-    timeElement.textContent = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-    
-    // Add message actions for assistant messages
-    let actionsDiv;
+    // Add actions for assistant messages
     if (role === 'assistant') {
-        actionsDiv = document.createElement('div');
+        const actionsDiv = document.createElement('div');
         actionsDiv.className = 'message-actions';
         
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'message-action-btn';
-        copyBtn.innerHTML = '<i class="far fa-copy"></i>';
-        copyBtn.title = 'نسخ';
-        copyBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText(content)
-                .then(() => showToast('تم نسخ النص', 'success'))
-                .catch(() => showToast('فشل نسخ النص', 'error'));
+        // Add copy button
+        const copyButton = document.createElement('button');
+        copyButton.className = 'message-action-btn';
+        copyButton.innerHTML = '<i class="far fa-copy"></i>';
+        copyButton.title = 'نسخ';
+        copyButton.addEventListener('click', () => {
+            navigator.clipboard.writeText(content).then(() => {
+                showToast('تم نسخ الرسالة', 'success');
+            });
         });
         
-        const likeBtn = document.createElement('button');
-        likeBtn.className = 'message-action-btn';
-        likeBtn.innerHTML = '<i class="far fa-heart"></i>';
-        likeBtn.title = 'إعجاب';
-        likeBtn.addEventListener('click', (e) => {
-            e.currentTarget.classList.toggle('liked');
-            e.currentTarget.querySelector('i').classList.toggle('far');
-            e.currentTarget.querySelector('i').classList.toggle('fas');
+        // Add like button
+        const likeButton = document.createElement('button');
+        likeButton.className = 'message-action-btn';
+        likeButton.innerHTML = '<i class="far fa-thumbs-up"></i>';
+        likeButton.title = 'إعجاب';
+        likeButton.addEventListener('click', function() {
+            this.classList.toggle('liked');
+            this.querySelector('i').classList.toggle('far');
+            this.querySelector('i').classList.toggle('fas');
+            
+            // TODO: Send feedback to server
         });
         
-        const speakBtn = document.createElement('button');
-        speakBtn.className = 'message-action-btn';
-        speakBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
-        speakBtn.title = 'قراءة';
-        speakBtn.addEventListener('click', () => {
+        // Add speak button
+        const speakButton = document.createElement('button');
+        speakButton.className = 'message-action-btn';
+        speakButton.innerHTML = '<i class="fas fa-volume-up"></i>';
+        speakButton.title = 'قراءة';
+        speakButton.addEventListener('click', () => {
             speakText(content);
         });
         
-        actionsDiv.appendChild(copyBtn);
-        actionsDiv.appendChild(likeBtn);
-        actionsDiv.appendChild(speakBtn);
+        actionsDiv.appendChild(copyButton);
+        actionsDiv.appendChild(likeButton);
+        actionsDiv.appendChild(speakButton);
+        
+        messageElement.appendChild(actionsDiv);
     }
     
-    // Assemble message
-    messageDiv.appendChild(role === 'user' ? avatar : document.createDocumentFragment());
-    messageDiv.appendChild(messageContent);
-    messageDiv.appendChild(role === 'assistant' ? avatar : document.createDocumentFragment());
-    
-    // Add time and actions
-    const messageContainer = document.createElement('div');
-    messageContainer.className = 'message-container';
-    messageContainer.appendChild(messageDiv);
-    
-    if (timeElement) {
-        messageContent.appendChild(timeElement);
-    }
-    
-    if (actionsDiv) {
-        messageContainer.appendChild(actionsDiv);
-    }
-    
-    messagesContainer.appendChild(messageContainer);
+    messagesContainer.appendChild(messageElement);
     
     // Scroll to bottom
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Highlight code blocks with Prism.js if available
+    if (window.Prism) {
+        Prism.highlightAllUnder(messageElement);
+    }
 }
 
 function formatMessageContent(content) {
-    if (!content) return '';
+    // Format code blocks (```code```)
+    let formattedContent = content.replace(/```([\s\S]*?)```/g, function(match, code) {
+        return `<pre><code>${code}</code></pre>`;
+    });
     
-    // Basic HTML escaping
-    let escaped = content
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+    // Format inline code (`code`)
+    formattedContent = formattedContent.replace(/`([^`]+)`/g, '<code>$1</code>');
     
-    // Code blocks
-    escaped = escaped.replace(/```([\s\S]*?)```/g, '<pre>$1</pre>');
+    // Format lists
+    formattedContent = formattedContent.replace(/^\s*(-|\*|\d+\.)\s+(.*?)$/gm, '<li>$2</li>');
+    formattedContent = formattedContent.replace(/<li>.*?<\/li>(?:\s*\n\s*<li>.*?<\/li>)+/g, function(match) {
+        return '<ul>' + match + '</ul>';
+    });
     
-    // Inline code
-    escaped = escaped.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Format paragraphs (simple approach)
+    formattedContent = formattedContent.replace(/\n\n/g, '</p><p>');
+    formattedContent = '<p>' + formattedContent + '</p>';
+    formattedContent = formattedContent.replace(/<p><ul>/g, '<ul>').replace(/<\/ul><\/p>/g, '</ul>');
     
-    // Bold text
-    escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Format links
+    formattedContent = formattedContent.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     
-    // Italic text
-    escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    
-    // Line breaks
-    escaped = escaped.replace(/\n/g, '<br>');
-    
-    return escaped;
+    return formattedContent;
 }
 
 function showTypingIndicator() {
+    const typingElement = document.createElement('div');
+    typingElement.className = 'message-bubble assistant loading';
+    typingElement.id = 'typing-indicator';
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    
     const typingIndicator = document.createElement('div');
-    typingIndicator.className = 'message-bubble assistant loading';
-    typingIndicator.id = 'typing-indicator';
+    typingIndicator.className = 'typing-indicator';
+    typingIndicator.innerHTML = '<span></span><span></span><span></span>';
     
-    const avatar = document.createElement('div');
-    avatar.className = 'message-avatar';
-    const avatarImg = document.createElement('img');
-    avatarImg.src = '/static/img/yasmin-avatar.png';
-    avatar.appendChild(avatarImg);
+    contentDiv.appendChild(typingIndicator);
+    typingElement.appendChild(contentDiv);
     
-    const messageContent = document.createElement('div');
-    messageContent.className = 'message-content';
-    messageContent.innerHTML = `
-        <div class="typing-indicator">
-            <span></span>
-            <span></span>
-            <span></span>
-        </div>
-    `;
-    
-    typingIndicator.appendChild(messageContent);
-    typingIndicator.appendChild(avatar);
-    
-    messagesContainer.appendChild(typingIndicator);
+    messagesContainer.appendChild(typingElement);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
@@ -568,102 +576,168 @@ function removeTypingIndicator() {
 }
 
 function speakText(text) {
+    if (!textToSpeechEnabled) return;
+    
     if (useBrowserTTS) {
-        // Use browser's built-in TTS
-        if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'ar-SA';
-            window.speechSynthesis.speak(utterance);
-        } else {
-            console.error('Browser does not support speech synthesis');
-            showToast('المتصفح لا يدعم ميزة تحويل النص إلى كلام', 'error');
+        useWebSpeechAPI(text);
+        return;
+    }
+    
+    // Show speech loading indicator
+    showToast('جارٍ إنشاء الصوت...', 'info');
+    
+    // Use ElevenLabs API
+    fetch('/api/text-to-speech', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            text: text,
+            voice_id: selectedVoice
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Text-to-speech request failed');
         }
-    } else {
-        // Use ElevenLabs API
-        fetch('/api/text-to-speech', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                text: text,
-                voice_id: selectedVoice
-            }),
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Text-to-speech API error');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.audio) {
-                // Create and play audio from base64
-                const audio = new Audio('data:audio/mpeg;base64,' + data.audio);
-                audio.play();
-            }
-        })
-        .catch(error => {
-            console.error('Error in text-to-speech:', error);
-            showToast('فشل تحويل النص إلى كلام', 'error');
-            
+        return response.json();
+    })
+    .then(data => {
+        if (data.audio) {
+            // Convert base64 to URL
+            const audioData = 'data:audio/mpeg;base64,' + data.audio;
+            const audio = new Audio(audioData);
+            audio.play();
+        } else {
             // Fallback to browser TTS
-            if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'ar-SA';
-                window.speechSynthesis.speak(utterance);
-            }
-        });
+            console.warn('No audio data received, falling back to browser TTS');
+            useWebSpeechAPI(text);
+        }
+    })
+    .catch(error => {
+        console.error('Error in text-to-speech:', error);
+        // Fallback to browser TTS
+        useWebSpeechAPI(text);
+    });
+}
+
+function useWebSpeechAPI(text) {
+    // Check if browser supports speech synthesis
+    if (!('speechSynthesis' in window)) {
+        console.error('Browser does not support speech synthesis');
+        return;
+    }
+    
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+    
+    // Create utterance
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Set language to Arabic
+    utterance.lang = 'ar-SA';
+    
+    // Get available voices
+    let voices = window.speechSynthesis.getVoices();
+    
+    // If voices is empty, wait for voices to load
+    if (voices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = function() {
+            voices = window.speechSynthesis.getVoices();
+            setVoice();
+        };
+    } else {
+        setVoice();
+    }
+    
+    function setVoice() {
+        // Try to find an Arabic voice
+        const arabicVoice = voices.find(v => v.lang.includes('ar'));
+        if (arabicVoice) {
+            utterance.voice = arabicVoice;
+        }
+        
+        // Speak
+        window.speechSynthesis.speak(utterance);
     }
 }
 
 function loadConversations() {
+    // إظهار حالة التحميل
+    conversationsList.innerHTML = '<div class="loading-conversations">جاري تحميل المحادثات...</div>';
+    
     fetch('/api/conversations')
-    .then(response => response.json())
-    .then(data => {
-        conversationsList.innerHTML = '';
-        
-        if (data.conversations && data.conversations.length > 0) {
-            data.conversations.forEach(conversation => {
-                addConversationToList(conversation);
-            });
-        } else {
-            conversationsList.innerHTML = '<div class="empty-state">لا توجد محادثات سابقة</div>';
-        }
-    })
-    .catch(error => {
-        console.error('Error loading conversations:', error);
-        conversationsList.innerHTML = '<div class="empty-state">فشل تحميل المحادثات</div>';
-    });
+        .then(response => {
+            // التحقق من استجابة HTTP
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            conversationsList.innerHTML = '';
+            console.log('Conversations data:', data); // تسجيل البيانات للتصحيح
+            
+            if (data.conversations && data.conversations.length > 0) {
+                data.conversations.forEach(conversation => {
+                    addConversationToList(conversation);
+                });
+                
+                // Set current conversation if not set
+                if (!currentConversationId && data.conversations.length > 0) {
+                    loadConversation(data.conversations[0].id);
+                } else if (currentConversationId) {
+                    // Highlight current conversation
+                    const currentItem = document.querySelector(`.conversation-item[data-id="${currentConversationId}"]`);
+                    if (currentItem) {
+                        currentItem.classList.add('active');
+                    } else {
+                        // إذا لم يتم العثور على المحادثة الحالية، تحميل أول محادثة
+                        if (data.conversations.length > 0) {
+                            loadConversation(data.conversations[0].id);
+                        }
+                    }
+                }
+            } else {
+                // No conversations yet
+                conversationsList.innerHTML = '<div class="empty-conversations">لا توجد محادثات سابقة</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading conversations:', error);
+            // عرض رسالة خطأ أكثر تفصيلاً
+            conversationsList.innerHTML = '<div class="error-conversations">فشل تحميل المحادثات. يرجى المحاولة مرة أخرى لاحقاً.</div>';
+            showToast('حدث خطأ أثناء تحميل المحادثات: ' + error.message, 'error');
+        });
 }
 
 function addConversationToList(conversation) {
     const conversationItem = document.createElement('div');
     conversationItem.className = 'conversation-item';
+    conversationItem.dataset.id = conversation.id;
+    
     if (currentConversationId === conversation.id) {
         conversationItem.classList.add('active');
     }
     
-    const date = new Date(conversation.last_updated);
-    const formattedDate = date.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
-    
     conversationItem.innerHTML = `
         <div class="conversation-info">
             <div class="conversation-title">${conversation.title}</div>
-            <div class="conversation-date">${formattedDate}</div>
+            <div class="conversation-date">${new Date(conversation.last_updated).toLocaleDateString('ar-SA')}</div>
         </div>
-        <button class="conversation-delete" title="حذف المحادثة">
-            <i class="fas fa-trash-alt"></i>
-        </button>
+        <div class="conversation-delete" title="حذف"><i class="fas fa-trash-alt"></i></div>
     `;
     
+    // Add click event to load conversation
     conversationItem.querySelector('.conversation-info').addEventListener('click', () => {
         loadConversation(conversation.id);
     });
     
+    // Add click event to delete button
     conversationItem.querySelector('.conversation-delete').addEventListener('click', (e) => {
         e.stopPropagation();
-        showConfirmation('هل أنت متأكد من رغبتك في حذف هذه المحادثة؟', () => {
+        showConfirmation(`هل أنت متأكد من رغبتك في حذف المحادثة "${conversation.title}"؟`, () => {
             deleteConversation(conversation.id);
         });
     });
@@ -672,225 +746,254 @@ function addConversationToList(conversation) {
 }
 
 function loadConversation(conversationId) {
-    fetch(`/api/conversations/${conversationId}`)
-    .then(response => response.json())
-    .then(data => {
-        currentConversationId = conversationId;
-        
-        // Update active conversation in the list
-        document.querySelectorAll('.conversation-item').forEach(item => {
-            item.classList.remove('active');
-        });
-        
-        document.querySelectorAll('.conversation-item').forEach(item => {
-            if (item.querySelector('.conversation-title').textContent === data.conversation.title) {
-                item.classList.add('active');
-            }
-        });
-        
-        // Clear current messages
-        messagesContainer.innerHTML = '';
-        
-        // Add messages to UI
-        if (data.messages && data.messages.length > 0) {
-            data.messages.forEach(message => {
-                addMessageToUI(message.role, message.content);
-            });
-        }
-        
-        // Close sidebar on mobile
-        if (window.innerWidth < 768) {
-            toggleSidebar();
-        }
-    })
-    .catch(error => {
-        console.error('Error loading conversation:', error);
-        showToast('فشل تحميل المحادثة', 'error');
+    // Highlight the selected conversation and unhighlight others
+    document.querySelectorAll('.conversation-item').forEach(item => {
+        item.classList.remove('active');
     });
+    
+    const selectedItem = document.querySelector(`.conversation-item[data-id="${conversationId}"]`);
+    if (selectedItem) {
+        selectedItem.classList.add('active');
+    }
+    
+    // Set current conversation ID
+    currentConversationId = conversationId;
+    localStorage.setItem('currentConversationId', currentConversationId);
+    
+    // Clear messages container and show loading
+    messagesContainer.innerHTML = '<div class="loading-message">جاري تحميل المحادثة...</div>';
+    
+    // Fetch conversation messages
+    fetch(`/api/conversations/${conversationId}`)
+        .then(response => {
+            // التحقق من استجابة HTTP
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Conversation data:', data); // للتصحيح
+            messagesContainer.innerHTML = ''; // إزالة رسالة التحميل
+            
+            if (data.messages && data.messages.length > 0) {
+                data.messages.forEach(message => {
+                    addMessageToUI(message.role, message.content);
+                });
+                
+                // Scroll to bottom
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            } else {
+                // إذا لم تكن هناك رسائل في المحادثة
+                displayWelcomeMessage();
+            }
+            
+            // Close sidebar on mobile after loading conversation
+            if (window.innerWidth < 768) {
+                document.body.classList.remove('sidebar-active');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading conversation:', error);
+            messagesContainer.innerHTML = '<div class="error-message">حدث خطأ أثناء تحميل المحادثة. يرجى المحاولة مرة أخرى.</div>';
+            showToast('حدث خطأ أثناء تحميل المحادثة: ' + error.message, 'error');
+        });
 }
 
 function startNewConversation() {
+    // Clear current conversation ID
     currentConversationId = null;
+    localStorage.removeItem('currentConversationId');
+    
+    // Clear messages container
     messagesContainer.innerHTML = '';
+    
+    // Unhighlight all conversations
+    document.querySelectorAll('.conversation-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Display welcome message
     displayWelcomeMessage();
     
     // Close sidebar on mobile
     if (window.innerWidth < 768) {
-        toggleSidebar();
+        document.body.classList.remove('sidebar-active');
     }
 }
 
 function clearConversation() {
     if (!currentConversationId) {
-        showToast('لا توجد محادثة لمسحها', 'error');
+        showToast('لا توجد محادثة لمسحها.', 'error');
         return;
     }
     
-    fetch(`/api/conversations/${currentConversationId}/messages`, {
-        method: 'DELETE'
+    fetch(`/api/conversations/${currentConversationId}/clear`, {
+        method: 'POST'
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to clear conversation');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Clear messages container
             messagesContainer.innerHTML = '';
+            
+            // Display welcome message
             displayWelcomeMessage();
+            
             showToast('تم مسح المحادثة بنجاح', 'success');
-        } else {
-            throw new Error('Failed to clear conversation');
-        }
-    })
-    .catch(error => {
-        console.error('Error clearing conversation:', error);
-        showToast('فشل مسح المحادثة', 'error');
-    });
+        })
+        .catch(error => {
+            console.error('Error clearing conversation:', error);
+            showToast('حدث خطأ أثناء مسح المحادثة', 'error');
+        });
 }
 
 function deleteConversation(conversationId) {
     fetch(`/api/conversations/${conversationId}`, {
         method: 'DELETE'
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            loadConversations();
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to delete conversation');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Remove from conversations list
+            const conversationItem = document.querySelector(`.conversation-item[data-id="${conversationId}"]`);
+            if (conversationItem) {
+                conversationItem.remove();
+            }
             
+            // If it was the current conversation, clear it
             if (currentConversationId === conversationId) {
                 currentConversationId = null;
+                localStorage.removeItem('currentConversationId');
                 messagesContainer.innerHTML = '';
                 displayWelcomeMessage();
             }
             
             showToast('تم حذف المحادثة بنجاح', 'success');
-        } else {
-            throw new Error('Failed to delete conversation');
-        }
-    })
-    .catch(error => {
-        console.error('Error deleting conversation:', error);
-        showToast('فشل حذف المحادثة', 'error');
-    });
+            
+            // Load first conversation if available
+            const firstConversation = document.querySelector('.conversation-item');
+            if (firstConversation) {
+                loadConversation(firstConversation.dataset.id);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting conversation:', error);
+            showToast('حدث خطأ أثناء حذف المحادثة', 'error');
+        });
 }
 
 function displayWelcomeMessage() {
-    const welcomeDiv = document.createElement('div');
-    welcomeDiv.className = 'welcome-container';
-    welcomeDiv.innerHTML = `
-        <div class="message-bubble assistant">
-            <div class="message-content">
-                <p>أهلاً بك في ياسمين! أنا مساعدك الذكي باللغة العربية. كيف يمكنني مساعدتك اليوم؟</p>
-            </div>
-            <div class="message-avatar">
-                <img src="/static/img/yasmin-avatar.webp" alt="Yasmin">
-            </div>
-        </div>
+    const welcomeContainer = document.createElement('div');
+    welcomeContainer.className = 'welcome-container';
+    
+    // Add welcome message
+    const welcomeMessage = document.createElement('div');
+    welcomeMessage.className = 'message-bubble assistant';
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.innerHTML = '<p>مرحباً! أنا ياسمين، مساعدك الذكي. كيف يمكنني مساعدتك اليوم؟</p>';
+    
+    welcomeMessage.appendChild(contentDiv);
+    welcomeContainer.appendChild(welcomeMessage);
+    
+    // Add suggestions
+    const suggestionsDiv = document.createElement('div');
+    suggestionsDiv.className = 'welcome-suggestions';
+    
+    const suggestions = [
+        { icon: 'fas fa-book', text: 'أخبريني عن موضوع علمي مثير للاهتمام' },
+        { icon: 'fas fa-brain', text: 'اقترحي علي طرقاً لتحسين التركيز' },
+        { icon: 'fas fa-code', text: 'ساعديني في كتابة كود برمجي بسيط' },
+        { icon: 'fas fa-utensils', text: 'اقترحي علي وصفة طعام صحية' }
+    ];
+    
+    suggestions.forEach(suggestion => {
+        const button = document.createElement('button');
+        button.className = 'suggestion-button';
+        button.innerHTML = `<i class="${suggestion.icon}"></i> ${suggestion.text}`;
         
-        <div class="welcome-suggestions">
-            <button class="suggestion-button">
-                <i class="fas fa-book"></i>
-                اكتب لي فقرة عن تاريخ اللغة العربية
-            </button>
-            <button class="suggestion-button">
-                <i class="fas fa-lightbulb"></i>
-                اقترح أفكار لمشروع برمجي
-            </button>
-            <button class="suggestion-button">
-                <i class="fas fa-code"></i>
-                اكتب كود بايثون لتحليل بيانات
-            </button>
-            <button class="suggestion-button">
-                <i class="fas fa-image"></i>
-                صف لي كيف أستخدم ميزة توليد الصور
-            </button>
-        </div>
-    `;
-    
-    messagesContainer.appendChild(welcomeDiv);
-    
-    // Add event listeners to suggestion buttons
-    welcomeDiv.querySelectorAll('.suggestion-button').forEach(button => {
-        button.addEventListener('click', () => {
-            messageInput.value = button.textContent.trim();
+        button.addEventListener('click', function() {
+            document.getElementById('message-input').value = suggestion.text;
             sendMessage();
         });
+        
+        suggestionsDiv.appendChild(button);
     });
+    
+    welcomeContainer.appendChild(suggestionsDiv);
+    messagesContainer.appendChild(welcomeContainer);
 }
 
 function showConfirmation(message, actionCallback) {
-    confirmMessage.textContent = message;
+    const confirmModal = document.getElementById('confirm-modal');
+    const confirmMessage = document.getElementById('confirm-message');
+    const confirmAction = document.getElementById('confirm-action');
+    const confirmCancel = document.getElementById('confirm-cancel');
     
-    // Set the action callback
-    confirmAction.onclick = () => {
+    confirmMessage.textContent = message;
+    confirmModal.classList.add('active');
+    
+    confirmAction.onclick = function() {
         actionCallback();
         confirmModal.classList.remove('active');
     };
     
-    confirmModal.classList.add('active');
+    confirmCancel.onclick = function() {
+        confirmModal.classList.remove('active');
+    };
+    
+    // Close modal when clicking outside
+    confirmModal.addEventListener('click', function(e) {
+        if (e.target === confirmModal) {
+            confirmModal.classList.remove('active');
+        }
+    });
 }
 
 function showToast(message, type = 'info') {
     const toastContainer = document.getElementById('toast-container');
-    
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
-    let icon;
-    switch (type) {
-        case 'success':
-            icon = 'fas fa-check-circle';
-            break;
-        case 'error':
-            icon = 'fas fa-exclamation-circle';
-            break;
-        default:
-            icon = 'fas fa-info-circle';
-    }
-    
-    toast.innerHTML = `
-        <i class="${icon}"></i>
-        <span>${message}</span>
-    `;
+    toast.textContent = message;
     
     toastContainer.appendChild(toast);
     
-    // Remove toast after animation completes
     setTimeout(() => {
         toast.remove();
     }, 3000);
 }
 
 function exportChat() {
-    if (!currentConversationId) {
-        showToast('لا توجد محادثة للتصدير', 'error');
-        return;
-    }
+    const messages = document.querySelectorAll('.message-bubble');
+    let chatText = 'محادثة ياسمين\n\n';
     
-    fetch(`/api/conversations/${currentConversationId}`)
-    .then(response => response.json())
-    .then(data => {
-        let chatText = `# ${data.conversation.title}\n`;
-        chatText += `# ${new Date(data.conversation.created_at).toLocaleString('ar-SA')}\n\n`;
-        
-        data.messages.forEach(message => {
-            const role = message.role === 'user' ? 'أنت' : 'ياسمين';
-            chatText += `## ${role} (${new Date(message.timestamp).toLocaleTimeString('ar-SA')})\n`;
-            chatText += message.content + '\n\n';
-        });
-        
-        // Create and download file
-        const blob = new Blob([chatText], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `محادثة_ياسمين_${new Date().toISOString().split('T')[0]}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        showToast('تم تصدير المحادثة بنجاح', 'success');
-    })
-    .catch(error => {
-        console.error('Error exporting chat:', error);
-        showToast('فشل تصدير المحادثة', 'error');
+    messages.forEach(message => {
+        const role = message.classList.contains('user') ? 'أنت' : 'ياسمين';
+        const content = message.querySelector('.message-content').textContent;
+        chatText += `${role}: ${content}\n\n`;
     });
+    
+    const blob = new Blob([chatText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `yasmin-chat-${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    
+    window.URL.revokeObjectURL(url);
+    a.remove();
+    
+    showToast('تم تصدير المحادثة بنجاح', 'success');
 }
