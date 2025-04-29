@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="feature-page">
+    <div class="feature-page-header">
+        <h1>توليد الكود</h1>
+    </div>
+
+    <div class="generator-card">
+        <div class="note">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                يمكنك استخدام هذه الأداة لتوليد أكواد برمجية بلغات مختلفة. اكتب وصفاً للمشكلة أو الوظيفة التي تريد كتابة كود لها.
+            </div>
+        </div>
+
+        <div class="input-area">
+            <label for="code-description" class="input-label">وصف الكود المطلوب</label>
+            <textarea id="code-description" class="feature-input" placeholder="اشرح بالتفصيل ما هو الكود الذي تريد إنشاءه، مثال: اكتب دالة في بايثون لتحويل درجات الحرارة من سيليزيوس إلى فهرنهايت"></textarea>
+            
+            <div class="language-select-container">
+                <label for="language-select">اختر لغة البرمجة</label>
+                <select id="language-select" class="feature-select">
+                    <option value="python">Python</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="html">HTML/CSS</option>
+                    <option value="java">Java</option>
+                    <option value="csharp">C#</option>
+                    <option value="cpp">C++</option>
+                    <option value="php">PHP</option>
+                    <option value="sql">SQL</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="ruby">Ruby</option>
+                    <option value="go">Go</option>
+                    <option value="swift">Swift</option>
+                    <option value="bash">Bash/Shell</option>
+                </select>
+            </div>
+            
+            <div class="options-container">
+                <div class="option">
+                    <input type="checkbox" id="with-comments" name="with-comments" checked>
+                    <label for="with-comments">إضافة تعليقات توضيحية</label>
+                </div>
+                <div class="option">
+                    <input type="checkbox" id="arabic-comments" name="arabic-comments" checked>
+                    <label for="arabic-comments">التعليقات باللغة العربية</label>
+                </div>
+            </div>
+            
+            <button id="generate-code-button" class="action-button">
+                <i class="fas fa-code"></i>
+                توليد الكود
+            </button>
+        </div>
+
+        <div class="loading-spinner" id="loading-spinner"></div>
+
+        <div id="code-result">
+            <!-- Generated code will appear here -->
+        </div>
+    </div>
+
+    <div class="generator-card" id="usage-tips">
+        <h3>نصائح للحصول على نتائج أفضل:</h3>
+        <ul>
+            <li>وصف المشكلة أو المهمة بوضوح وتفصيل</li>
+            <li>حدد المدخلات والمخرجات المتوقعة</li>
+            <li>أوضح أي متطلبات خاصة (كفاءة، أمان، إلخ)</li>
+            <li>اذكر المكتبات أو الإطارات التي ترغب في استخدامها</li>
+            <li>اطلب أمثلة على الاستخدام إذا كنت بحاجة إليها</li>
+        </ul>
+        
+        <h3>أمثلة على طلبات جيدة:</h3>
+        <ul>
+            <li>"اكتب دالة في جافا سكريبت للتحقق من صحة عنوان البريد الإلكتروني باستخدام التعبيرات النمطية (Regex)"</li>
+            <li>"أنشئ صفحة HTML مع نموذج تسجيل دخول يحتوي على التحقق من الإدخال ورسائل الخطأ"</li>
+            <li>"اكتب خوارزمية فرز سريع (QuickSort) في لغة بايثون مع شرح كل خطوة وتحليل للتعقيد الزمني والمكاني"</li>
+            <li>"أنشئ API بسيط في Node.js للتعامل مع قاعدة بيانات للمستخدمين، مع وظائف إنشاء وقراءة وتحديث وحذف (CRUD)"</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/code_generator.js') }}"></script>
+{% endblock %}

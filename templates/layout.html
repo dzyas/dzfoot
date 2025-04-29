@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#f0d7b9">
+    <title>{{ app_title }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="app-container" id="feature-app-container">
+        <div class="status-bar">
+            <div class="menu-container">
+                <a href="/" class="back-btn">
+                    <i class="fas fa-arrow-right"></i>
+                    العودة
+                </a>
+            </div>
+            <div class="status-bar-center">
+                <span>{{ app_title }}</span>
+            </div>
+            <div>
+                <button id="dark-mode-toggle-btn" class="icon-button">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="feature-page-container" id="scrollable-container">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+        // Basic functionality for feature pages
+        document.addEventListener('DOMContentLoaded', function() {
+            // Dark mode toggle functionality
+            const darkModeToggleBtn = document.getElementById('dark-mode-toggle-btn');
+            const darkMode = localStorage.getItem('darkMode') === 'true';
+            
+            // Apply dark mode if enabled
+            if (darkMode) {
+                document.body.classList.add('dark-mode');
+                darkModeToggleBtn.querySelector('i').classList.remove('fa-moon');
+                darkModeToggleBtn.querySelector('i').classList.add('fa-sun');
+            }
+            
+            // Toggle dark mode
+            darkModeToggleBtn.addEventListener('click', function() {
+                document.body.classList.toggle('dark-mode');
+                const isDarkMode = document.body.classList.contains('dark-mode');
+                localStorage.setItem('darkMode', isDarkMode);
+                
+                if (isDarkMode) {
+                    this.querySelector('i').classList.remove('fa-moon');
+                    this.querySelector('i').classList.add('fa-sun');
+                } else {
+                    this.querySelector('i').classList.remove('fa-sun');
+                    this.querySelector('i').classList.add('fa-moon');
+                }
+            });
+            
+            // Fix the scrolling issues on mobile
+            const scrollContainer = document.getElementById('scrollable-container');
+            if (scrollContainer) {
+                // Make sure iOS Safari handles touch events correctly for scrolling
+                scrollContainer.addEventListener('touchstart', function() {
+                    // This empty handler ensures touch events are captured
+                }, { passive: true });
+            }
+            
+            // Toast functionality
+            window.showToast = function(message, type = 'info') {
+                const toastContainer = document.getElementById('toast-container');
+                
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                
+                let icon;
+                switch (type) {
+                    case 'success':
+                        icon = 'fas fa-check-circle';
+                        break;
+                    case 'error':
+                        icon = 'fas fa-exclamation-circle';
+                        break;
+                    default:
+                        icon = 'fas fa-info-circle';
+                }
+                
+                toast.innerHTML = `
+                    <i class="${icon}"></i>
+                    <span>${message}</span>
+                `;
+                
+                toastContainer.appendChild(toast);
+                
+                // Remove toast after animation completes
+                setTimeout(() => {
+                    toast.remove();
+                }, 3000);
+            };
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

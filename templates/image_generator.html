@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="feature-page">
+    <div class="feature-page-header">
+        <h1>توليد الصور</h1>
+    </div>
+
+    <div class="generator-card">
+        <div class="note">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                يمكنك استخدام هذه الأداة لتوليد صور مخصصة من وصف نصي. اكتب وصفاً تفصيلياً للصورة التي تريد إنشاءها.
+            </div>
+        </div>
+
+        <div class="input-area">
+            <label for="prompt-input" class="input-label">وصف الصورة</label>
+            <textarea id="prompt-input" class="feature-input" placeholder="اكتب وصفاً تفصيلياً للصورة التي تريد إنشاءها مثل: غروب الشمس على شاطئ بحر مع نخيل وقارب شراعي"></textarea>
+            
+            <div class="size-select-container">
+                <label for="size-select">حجم الصورة</label>
+                <select id="size-select" class="feature-select">
+                    <option value="512">صغير (512x512)</option>
+                    <option value="768">متوسط (768x768)</option>
+                    <option value="1024">كبير (1024x1024)</option>
+                </select>
+            </div>
+            
+            <button id="generate-button" class="action-button">
+                <i class="fas fa-magic"></i>
+                توليد الصورة
+            </button>
+        </div>
+
+        <div class="loading-spinner" id="loading-spinner"></div>
+
+        <div class="generated-content" id="image-result">
+            <!-- Image will be displayed here -->
+        </div>
+    </div>
+
+    <div class="generator-card" id="usage-tips">
+        <h3>نصائح للحصول على نتائج أفضل:</h3>
+        <ul>
+            <li>استخدم وصفاً تفصيلياً للصورة التي تريدها (الألوان، الأجواء، الإضاءة، العناصر المهمة)</li>
+            <li>حدد أسلوب الصورة (واقعي، كرتوني، رسم زيتي، فوتوغرافي، إلخ)</li>
+            <li>أضف كلمات مثل "عالي الجودة"، "تفاصيل دقيقة"، "إضاءة سينمائية" للحصول على نتائج أفضل</li>
+            <li>حدد المنظور والزاوية (منظر علوي، منظر من مستوى العين، زاوية واسعة)</li>
+        </ul>
+        
+        <h3>أمثلة على محفزات جيدة:</h3>
+        <ul>
+            <li>"منظر جوي لمدينة القاهرة في المساء، إضاءة المدينة، نهر النيل، إضاءة غروب، تصوير فوتوغرافي عالي الجودة"</li>
+            <li>"رسم مائي لحديقة ملونة مليئة بالأزهار، ألوان زاهية، ضوء الشمس يتخلل الأغصان، أسلوب انطباعي"</li>
+            <li>"مشهد من الفضاء الخارجي يظهر كوكباً أزرق مع حلقات مثل زحل، نجوم متلألئة في الخلفية، مجرات بعيدة، تصوير فلكي واقعي"</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/image_generator.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="feature-page">
+    <div class="feature-page-header">
+        <h1>التعرف على الصور</h1>
+    </div>
+
+    <div class="generator-card">
+        <div class="note">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                يمكنك استخدام هذه الأداة لتحليل الصور والتعرف على محتواها. قم بتحميل صورة وسيتم تحليلها وتقديم وصف لها.
+            </div>
+        </div>
+
+        <div id="upload-container" class="upload-area">
+            <i class="fas fa-cloud-upload-alt upload-icon"></i>
+            <p class="upload-text">اسحب وأفلت صورة هنا أو انقر للاختيار</p>
+            <p class="upload-subtext">الصيغ المدعومة: JPG, JPEG, PNG, GIF (الحد الأقصى: 16 ميجابايت)</p>
+            <input type="file" id="image-upload" accept=".jpg,.jpeg,.png,.gif" hidden>
+        </div>
+
+        <div id="image-preview" class="image-preview">
+            <img id="preview-image" src="" alt="معاينة الصورة">
+            <button id="analyze-button" class="action-button">
+                <i class="fas fa-search"></i>
+                تحليل الصورة
+            </button>
+        </div>
+
+        <div class="loading-spinner" id="loading-spinner"></div>
+
+        <div id="recognition-results" class="recognition-result">
+            <div class="result-tabs">
+                <div class="result-tab active" data-tab="description-tab">الوصف</div>
+                <div class="result-tab" data-tab="details-tab">التفاصيل التقنية</div>
+                <div class="result-tab" data-tab="objects-tab">الكائنات المكتشفة</div>
+            </div>
+
+            <div id="description-tab" class="tab-content active">
+                <!-- AI description will be inserted here -->
+            </div>
+
+            <div id="details-tab" class="tab-content">
+                <!-- Technical details will be inserted here -->
+            </div>
+
+            <div id="objects-tab" class="tab-content">
+                <div id="objects-list">
+                    <!-- Detected objects will be listed here -->
+                </div>
+                <div id="annotated-image-container" class="image-comparison">
+                    <!-- Original and annotated images will be displayed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="generator-card" id="usage-tips">
+        <h3>إمكانيات تحليل الصور:</h3>
+        <ul>
+            <li>التعرف على العناصر والكائنات في الصورة</li>
+            <li>تحليل معلومات الصورة التقنية (الأبعاد، التنسيق، بيانات EXIF)</li>
+            <li>التعرف على الوجوه البشرية (إن وجدت)</li>
+            <li>توليد وصف شامل لمحتوى الصورة</li>
+            <li>تحليل الألوان المهيمنة في الصورة</li>
+        </ul>
+        
+        <div class="note" style="margin-top: 20px;">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>
+                تعتمد دقة التحليل على جودة الصورة ووضوحها. الصور عالية الدقة والواضحة تعطي نتائج أفضل.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/image_recognition.js') }}"></script>
+{% endblock %}
