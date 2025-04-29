@@ -1,1179 +1,896 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // App initialization
-    initApp();
-});
+// Main application JavaScript for Yasmin chat
 
 // Global variables
 let currentConversationId = null;
-let pendingMessageId = null;
-let isTyping = false;
-let recognitionActive = false;
-let messageQueue = [];
-let processingQueue = false;
+let isGeneratingResponse = false;
+let isRecording = false;
+let darkMode = localStorage.getItem('darkMode') === 'true';
+let textToSpeechEnabled = localStorage.getItem('textToSpeech') === 'true' || localStorage.getItem('textToSpeech') === null; // Default to true
+let useBrowserTTS = localStorage.getItem('useBrowserTTS') === 'true';
+let speechRecognition;
+let currentModel = localStorage.getItem('model') || 'gemini-1.5-pro';
+let currentTemperature = parseFloat(localStorage.getItem('temperature') || '0.7');
+let currentMaxTokens = parseInt(localStorage.getItem('maxTokens') || '2000');
+let selectedVoice = localStorage.getItem('voice') || 'EXAVITQu4vr4xnSDxMaL';
 
-function initApp() {
+// DOM Elements
+const messagesContainer = document.getElementById('messages');
+const messageInput = document.getElementById('message-input');
+const sendButton = document.getElementById('send-button');
+const micButton = document.getElementById('mic-button');
+const settingsSidebar = document.getElementById('settings-sidebar');
+const sidebarOverlay = document.getElementById('sidebar-overlay');
+const closeSidebarButton = document.getElementById('close-sidebar');
+const sidebarToggleButton = document.getElementById('sidebar-toggle');
+const temperatureSlider = document.getElementById('temperature-slider');
+const temperatureValue = document.getElementById('temperature-value');
+const maxTokensInput = document.getElementById('max-tokens');
+const modelSelect = document.getElementById('model-select');
+const darkModeToggle = document.getElementById('dark-mode-toggle');
+const textToSpeechToggle = document.getElementById('text-to-speech-toggle');
+const useBrowserTtsToggle = document.getElementById('use-browser-tts');
+const voiceSelect = document.getElementById('voice-select');
+const newConversationBtn = document.getElementById('new-conversation-btn');
+const conversationsList = document.getElementById('conversations-list');
+const clearChatBtn = document.getElementById('clear-chat-btn');
+const menuToggle = document.getElementById('menu-toggle');
+const dropdownMenu = document.getElementById('dropdown-menu');
+const mobileMenuButton = document.getElementById('mobile-menu-button');
+const confirmModal = document.getElementById('confirm-modal');
+const confirmAction = document.getElementById('confirm-action');
+const confirmCancel = document.getElementById('confirm-cancel');
+const confirmMessage = document.getElementById('confirm-message');
+const exportChatBtn = document.getElementById('export-chat-btn');
+
+// Initialize the application
+document.addEventListener('DOMContentLoaded', initializeApp);
+
+function initializeApp() {
     // Load settings from localStorage
     loadSettings();
     
-    // Setup event listeners
+    // Set up event listeners
     setupEventListeners();
+    
+    // Load conversations
+    loadConversations();
+    
+    // Display welcome message if no conversation is loaded
+    if (!currentConversationId) {
+        displayWelcomeMessage();
+    }
     
     // Initialize speech recognition
     initSpeechRecognition();
-    
-    // Initialize speech synthesis
-    initSpeechSynthesis();
-    
-    // Fetch conversations list
-    fetchConversations();
-    
-    // Setup display message handling
-    if (document.querySelectorAll('#messages .message-bubble').length === 0) {
-        displayWelcomeMessage();
-    }
 }
 
 function loadSettings() {
-    // Load dark mode preference
-    if (localStorage.getItem('darkMode') === 'true') {
+    // Apply dark mode if enabled
+    if (darkMode) {
         document.body.classList.add('dark-mode');
-        if (document.getElementById('dark-mode-toggle')) {
-            document.getElementById('dark-mode-toggle').checked = true;
-        }
+        darkModeToggle.checked = true;
     }
     
-    // Load text-to-speech preference
-    if (localStorage.getItem('textToSpeech') === 'false') {
-        if (document.getElementById('text-to-speech-toggle')) {
-            document.getElementById('text-to-speech-toggle').checked = false;
-        }
+    // Set text-to-speech toggle
+    textToSpeechToggle.checked = textToSpeechEnabled;
+    
+    // Set browser TTS toggle
+    if (useBrowserTtsToggle) {
+        useBrowserTtsToggle.checked = useBrowserTTS;
     }
     
-    // Load browser TTS preference
-    const useBrowserTTS = localStorage.getItem('useBrowserTTS') === 'true';
-    if (document.getElementById('use-browser-tts')) {
-        document.getElementById('use-browser-tts').checked = useBrowserTTS;
-        toggleElevenLabsVoiceSelector(useBrowserTTS);
+    // Set voice selector if available
+    if (voiceSelect) {
+        voiceSelect.value = selectedVoice;
     }
     
-    // Load voice preference
-    if (localStorage.getItem('voiceId')) {
-        const voiceSelect = document.getElementById('voice-select');
-        if (voiceSelect) {
-            voiceSelect.value = localStorage.getItem('voiceId');
-        }
+    // Set model and parameters
+    if (modelSelect) {
+        modelSelect.value = currentModel;
     }
     
-    // Load model preference
-    const savedModel = localStorage.getItem('model');
-    if (savedModel && document.getElementById('model-select')) {
-        document.getElementById('model-select').value = savedModel;
+    if (temperatureSlider) {
+        temperatureSlider.value = currentTemperature;
+        temperatureValue.textContent = currentTemperature;
     }
     
-    // Load temperature
-    const savedTemperature = localStorage.getItem('temperature');
-    if (savedTemperature && document.getElementById('temperature-slider')) {
-        document.getElementById('temperature-slider').value = savedTemperature;
-        document.getElementById('temperature-value').textContent = savedTemperature;
-    }
-    
-    // Load max tokens
-    const savedMaxTokens = localStorage.getItem('maxTokens');
-    if (savedMaxTokens && document.getElementById('max-tokens')) {
-        document.getElementById('max-tokens').value = savedMaxTokens;
+    if (maxTokensInput) {
+        maxTokensInput.value = currentMaxTokens;
     }
 }
 
 function setupEventListeners() {
-    // Close sidebar button
-    const closeSidebarButton = document.getElementById('close-sidebar');
-    if (closeSidebarButton) {
-        closeSidebarButton.addEventListener('click', closeSidebar);
-    }
-    
-    // Sidebar overlay (for closing on tap)
-    const sidebarOverlay = document.getElementById('sidebar-overlay');
-    if (sidebarOverlay) {
-        sidebarOverlay.addEventListener('click', closeSidebar);
-    }
-    
-    // Voice select change
-    const voiceSelect = document.getElementById('voice-select');
-    if (voiceSelect) {
-        voiceSelect.addEventListener('change', function() {
-            localStorage.setItem('voiceId', this.value);
-        });
-    }
-    
-    // Dropdown menu toggle (3 dots)
-    const menuToggle = document.getElementById('menu-toggle');
-    if (menuToggle) {
-        menuToggle.addEventListener('click', toggleDropdownMenu);
-        // Close dropdown when clicking elsewhere
-        document.addEventListener('click', function(e) {
-            const dropdown = document.getElementById('dropdown-menu');
-            if (dropdown && !menuToggle.contains(e.target) && !dropdown.contains(e.target)) {
-                dropdown.classList.remove('active');
-            }
-        });
-    }
-    
-    // Toggle sidebar button in dropdown
-    const toggleSidebarButton = document.getElementById('sidebar-toggle');
-    if (toggleSidebarButton) {
-        toggleSidebarButton.addEventListener('click', function() {
-            toggleSidebar();
-            hideDropdownMenu();
-        });
-    }
-    
-    // Mobile menu button (hamburger)
-    const mobileMenuButton = document.getElementById('mobile-menu-button');
-    if (mobileMenuButton) {
-        mobileMenuButton.addEventListener('click', toggleSidebar);
-    }
-    
-    // Dark mode toggle switch
-    const darkModeToggle = document.getElementById('dark-mode-toggle');
-    if (darkModeToggle) {
-        darkModeToggle.addEventListener('change', toggleDarkMode);
-    }
-    
-    // Send message when send button is clicked
-    const sendButton = document.getElementById('send-button');
-    if (sendButton) {
-        sendButton.addEventListener('click', sendMessage);
-    }
-    
-    // Send message when enter key is pressed (without shift)
-    const messageInput = document.getElementById('message-input');
-    if (messageInput) {
-        messageInput.addEventListener('keydown', handleInputKeydown);
-        messageInput.addEventListener('input', adjustInputHeight);
-    }
-    
-    // Clear chat button
-    const clearChatButton = document.getElementById('clear-chat-btn');
-    if (clearChatButton) {
-        clearChatButton.addEventListener('click', function() {
-            showConfirmModal('هل أنت متأكد من رغبتك في مسح هذه المحادثة؟', clearCurrentConversation);
-            hideDropdownMenu();
-        });
-    }
-    
-    // New conversation button in sidebar
-    const newConversationButton = document.getElementById('new-conversation-btn');
-    if (newConversationButton) {
-        newConversationButton.addEventListener('click', function() {
-            createNewConversation();
-            closeSidebar();
-        });
-    }
-    
-    // Microphone button
-    const micButton = document.getElementById('mic-button');
-    if (micButton) {
-        micButton.addEventListener('click', toggleSpeechRecognition);
-    }
-    
-    // Model select change
-    const modelSelect = document.getElementById('model-select');
-    if (modelSelect) {
-        modelSelect.addEventListener('change', saveModelPreference);
-    }
-    
-    // Temperature slider change
-    const temperatureSlider = document.getElementById('temperature-slider');
-    if (temperatureSlider) {
-        temperatureSlider.addEventListener('input', updateTemperatureValue);
-        temperatureSlider.addEventListener('change', function() {
-            localStorage.setItem('temperature', this.value);
-        });
-    }
-    
-    // Max tokens input change
-    const maxTokensInput = document.getElementById('max-tokens');
-    if (maxTokensInput) {
-        maxTokensInput.addEventListener('change', saveMaxTokens);
-    }
-    
-    // Text-to-speech toggle
-    const textToSpeechToggle = document.getElementById('text-to-speech-toggle');
-    if (textToSpeechToggle) {
-        textToSpeechToggle.addEventListener('change', saveTextToSpeechPreference);
-    }
-    
-    // Browser TTS toggle
-    const browserTtsToggle = document.getElementById('use-browser-tts');
-    if (browserTtsToggle) {
-        browserTtsToggle.addEventListener('change', function() {
-            const useBrowserTts = this.checked;
-            localStorage.setItem('useBrowserTTS', useBrowserTts);
-            toggleElevenLabsVoiceSelector(useBrowserTts);
-        });
-    }
-    
-    // Confirm dialog buttons
-    const confirmActionButton = document.getElementById('confirm-action');
-    if (confirmActionButton) {
-        confirmActionButton.addEventListener('click', handleConfirmation);
-    }
-    
-    const confirmCancelButton = document.getElementById('confirm-cancel');
-    if (confirmCancelButton) {
-        confirmCancelButton.addEventListener('click', closeConfirmModal);
-    }
-    
-    // Window resize event for mobile adaptations
-    window.addEventListener('resize', adjustUIForScreenSize);
-}
-
-function initSpeechRecognition() {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-        window.speechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-        const recognition = new window.speechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.lang = 'ar-AR'; // Arabic language
-        
-        let finalTranscript = '';
-        
-        recognition.onresult = function(event) {
-            let interimTranscript = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript;
-                } else {
-                    interimTranscript += event.results[i][0].transcript;
-                }
-            }
-            
-            // Update the message input with the transcript
-            const messageInput = document.getElementById('message-input');
-            if (messageInput) {
-                messageInput.value = finalTranscript + interimTranscript;
-                // Trigger input event to adjust height
-                messageInput.dispatchEvent(new Event('input'));
-            }
-        };
-        
-        recognition.onend = function() {
-            // Stop recording UI
-            updateRecordingUI(false);
-            recognitionActive = false;
-            
-            const messageInput = document.getElementById('message-input');
-            if (messageInput && finalTranscript.trim() !== '') {
-                // If we have a final transcript, send the message
-                messageInput.value = finalTranscript;
-                sendMessage();
-                finalTranscript = '';
-            }
-        };
-        
-        recognition.onerror = function(event) {
-            updateRecordingUI(false);
-            recognitionActive = false;
-            if (event.error === 'no-speech') {
-                showToast('لم يتم سماع أي صوت', 'error');
-            } else if (event.error === 'not-allowed') {
-                showToast('يرجى السماح بالوصول إلى الميكروفون', 'error');
-            } else {
-                showToast('حدث خطأ في التعرف على الصوت: ' + event.error, 'error');
-            }
-        };
-        
-        window.recognition = recognition;
-    } else {
-        // Speech recognition not supported
-        const micButton = document.getElementById('mic-button');
-        if (micButton) {
-            micButton.style.display = 'none';
+    // Message sending
+    sendButton.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
         }
-        
-        showToast('التعرف على الصوت غير مدعوم في هذا المتصفح', 'info');
-    }
-}
-
-function toggleSpeechRecognition() {
-    if (!window.recognition) {
-        showToast('التعرف على الصوت غير مدعوم في هذا المتصفح', 'error');
-        return;
-    }
-    
-    if (recognitionActive) {
-        window.recognition.stop();
-        recognitionActive = false;
-    } else {
-        try {
-            window.recognition.start();
-            recognitionActive = true;
-            updateRecordingUI(true);
-        } catch (e) {
-            showToast('حدث خطأ في بدء التعرف على الصوت', 'error');
-        }
-    }
-}
-
-function updateRecordingUI(isActive) {
-    const micButton = document.getElementById('mic-button');
-    
-    if (isActive) {
-        if (micButton) micButton.classList.add('recording');
-    } else {
-        if (micButton) micButton.classList.remove('recording');
-    }
-}
-
-function initSpeechSynthesis() {
-    // Initialize browser's speech synthesis (for fallback when ElevenLabs is not available)
-    if ('speechSynthesis' in window) {
-        window.synth = window.speechSynthesis;
-        
-        // Get Arabic voice if available
-        window.speechSynthesis.onvoiceschanged = function() {
-            let voices = window.speechSynthesis.getVoices();
-            window.arabicVoice = voices.find(voice => voice.lang.includes('ar')) || voices[0];
-        };
-        
-        // Try to load voices immediately (some browsers need this)
-        if (window.speechSynthesis.getVoices().length > 0) {
-            let voices = window.speechSynthesis.getVoices();
-            window.arabicVoice = voices.find(voice => voice.lang.includes('ar')) || voices[0];
-        }
-    }
-    
-    // Initialize ElevenLabs audio player
-    window.audioPlayer = new Audio();
-}
-
-function toggleElevenLabsVoiceSelector(useBrowserTTS) {
-    // Show/hide ElevenLabs voice selector based on browser TTS preference
-    const voiceSelector = document.getElementById('elevenlabs-voices');
-    if (voiceSelector) {
-        voiceSelector.style.display = useBrowserTTS ? 'none' : 'block';
-    }
-}
-
-function speakText(text) {
-    // Check if text-to-speech is enabled
-    if (localStorage.getItem('textToSpeech') === 'false') {
-        return;
-    }
-    
-    // Check if browser TTS is preferred
-    const useBrowserTTS = localStorage.getItem('useBrowserTTS') === 'true';
-    
-    if (useBrowserTTS) {
-        // Use browser's built-in speech synthesis
-        if ('speechSynthesis' in window && window.synth) {
-            // Cancel any ongoing speech
-            window.synth.cancel();
-            
-            // Create a new utterance
-            const utterance = new SpeechSynthesisUtterance(text);
-            
-            // Set language to Arabic
-            utterance.lang = 'ar';
-            
-            // Set voice if we have an Arabic voice
-            if (window.arabicVoice) {
-                utterance.voice = window.arabicVoice;
-            }
-            
-            // Adjust speech parameters for better Arabic pronunciation
-            utterance.pitch = 1;
-            utterance.rate = 0.9; // Slightly slower for clearer Arabic pronunciation
-            utterance.volume = 1;
-            
-            // Speak the text
-            window.synth.speak(utterance);
-        } else {
-            console.warn('Browser speech synthesis not available');
-        }
-    } else {
-        // ElevenLabs will handle TTS via the API
-        // Note: Nothing to do here, as the server-side handles calling ElevenLabs
-        // The audio data will be returned with the API response
-    }
-}
-
-function stopSpeaking() {
-    // Stop browser's speech synthesis
-    if ('speechSynthesis' in window && window.synth) {
-        window.synth.cancel();
-    }
-    
-    // Stop ElevenLabs audio
-    if (window.audioPlayer) {
-        window.audioPlayer.pause();
-        window.audioPlayer.currentTime = 0;
-    }
-}
-
-// Play audio from ElevenLabs using base64 data
-function playAudioFromBase64(base64Audio) {
-    if (!base64Audio) return;
-    
-    // Check if text-to-speech is enabled
-    if (localStorage.getItem('textToSpeech') === 'false') {
-        return;
-    }
-    
-    // Stop any ongoing speech first
-    stopSpeaking();
-    
-    // Convert base64 to blob URL
-    const binary = atob(base64Audio);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    const blob = new Blob([bytes], { type: 'audio/mpeg' });
-    const audioUrl = URL.createObjectURL(blob);
-    
-    // Play the audio
-    window.audioPlayer.src = audioUrl;
-    window.audioPlayer.play().catch(error => {
-        console.error('Error playing audio:', error);
-        showToast('حدث خطأ في تشغيل الصوت', 'error');
     });
+    
+    // Mic button
+    if (micButton) {
+        micButton.addEventListener('click', toggleRecording);
+    }
+    
+    // Auto-resize message input
+    messageInput.addEventListener('input', autoResizeInput);
+    
+    // Sidebar toggle
+    sidebarToggleButton.addEventListener('click', toggleSidebar);
+    closeSidebarButton.addEventListener('click', toggleSidebar);
+    sidebarOverlay.addEventListener('click', toggleSidebar);
+    mobileMenuButton.addEventListener('click', toggleSidebar);
+    
+    // Menu toggle
+    menuToggle.addEventListener('click', () => {
+        dropdownMenu.classList.toggle('active');
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.menu-container') && dropdownMenu.classList.contains('active')) {
+            dropdownMenu.classList.remove('active');
+        }
+    });
+    
+    // Settings changes
+    darkModeToggle.addEventListener('change', toggleDarkMode);
+    textToSpeechToggle.addEventListener('change', toggleTextToSpeech);
+    if (useBrowserTtsToggle) {
+        useBrowserTtsToggle.addEventListener('change', toggleBrowserTTS);
+    }
+    if (voiceSelect) {
+        voiceSelect.addEventListener('change', changeVoice);
+    }
+    
+    // Model parameters
+    if (modelSelect) {
+        modelSelect.addEventListener('change', changeModel);
+    }
+    if (temperatureSlider) {
+        temperatureSlider.addEventListener('input', updateTemperature);
+    }
+    if (maxTokensInput) {
+        maxTokensInput.addEventListener('change', updateMaxTokens);
+    }
+    
+    // Conversation management
+    newConversationBtn.addEventListener('click', startNewConversation);
+    clearChatBtn.addEventListener('click', () => {
+        showConfirmation('هل أنت متأكد من رغبتك في مسح جميع الرسائل في هذه المحادثة؟', clearConversation);
+    });
+    
+    // Export chat
+    if (exportChatBtn) {
+        exportChatBtn.addEventListener('click', exportChat);
+    }
+    
+    // Modal buttons
+    confirmAction.addEventListener('click', () => {
+        // The actual action will be set when showing the confirmation
+        confirmModal.classList.remove('active');
+    });
+    
+    confirmCancel.addEventListener('click', () => {
+        confirmModal.classList.remove('active');
+    });
+    
+    // Feature buttons
+    setupFeatureButtons();
 }
 
-function toggleDropdownMenu() {
-    const dropdown = document.getElementById('dropdown-menu');
-    if (dropdown) {
-        dropdown.classList.toggle('active');
+function setupFeatureButtons() {
+    // These buttons now point to separate pages and are handled by Flask routing
+    // Add any client-side handlers for tool buttons that still work in the same page
+    
+    const summarizeBtn = document.getElementById('summarize-btn');
+    if (summarizeBtn) {
+        summarizeBtn.addEventListener('click', () => {
+            if (!currentConversationId) {
+                showToast('لا توجد محادثة لتلخيصها.', 'error');
+                return;
+            }
+            
+            const summaryPrompt = 'لخص المحادثة السابقة في نقاط قصيرة وواضحة.';
+            messageInput.value = summaryPrompt;
+            sendMessage();
+        });
+    }
+    
+    const grammarCheckBtn = document.getElementById('grammar-check-btn');
+    if (grammarCheckBtn) {
+        grammarCheckBtn.addEventListener('click', () => {
+            if (!messagesContainer.querySelector('.message-bubble.user:last-of-type')) {
+                showToast('يُرجى إدخال نص للتدقيق اللغوي أولاً.', 'error');
+                return;
+            }
+            
+            const lastUserMessage = messagesContainer.querySelector('.message-bubble.user:last-of-type .message-content').textContent;
+            const grammarPrompt = `قم بتدقيق النص التالي لغوياً وتصحيح أي أخطاء إملائية أو نحوية:\n\n"${lastUserMessage}"\n\nالنص المصحح:`;
+            messageInput.value = grammarPrompt;
+            sendMessage();
+        });
+    }
+    
+    const explainCodeBtn = document.getElementById('explain-code-btn');
+    if (explainCodeBtn) {
+        explainCodeBtn.addEventListener('click', () => {
+            if (!messagesContainer.querySelector('.message-bubble.user:last-of-type')) {
+                showToast('يُرجى إدخال الكود المراد شرحه أولاً.', 'error');
+                return;
+            }
+            
+            const lastUserMessage = messagesContainer.querySelector('.message-bubble.user:last-of-type .message-content').textContent;
+            const explainPrompt = `اشرح الكود التالي بالتفصيل مع توضيح كل سطر ووظيفته:\n\n${lastUserMessage}`;
+            messageInput.value = explainPrompt;
+            sendMessage();
+        });
+    }
+    
+    const translateBtn = document.getElementById('translate-btn');
+    if (translateBtn) {
+        translateBtn.addEventListener('click', () => {
+            if (!messagesContainer.querySelector('.message-bubble.user:last-of-type')) {
+                showToast('يُرجى إدخال النص المراد ترجمته أولاً.', 'error');
+                return;
+            }
+            
+            const lastUserMessage = messagesContainer.querySelector('.message-bubble.user:last-of-type .message-content').textContent;
+            const translatePrompt = `ترجم النص التالي إلى اللغة الإنجليزية:\n\n"${lastUserMessage}"\n\nالترجمة:`;
+            messageInput.value = translatePrompt;
+            sendMessage();
+        });
     }
 }
 
-function hideDropdownMenu() {
-    const dropdown = document.getElementById('dropdown-menu');
-    if (dropdown) {
-        dropdown.classList.remove('active');
-    }
+function autoResizeInput() {
+    messageInput.style.height = 'auto';
+    messageInput.style.height = (messageInput.scrollHeight) + 'px';
 }
 
 function toggleSidebar() {
     document.body.classList.toggle('sidebar-active');
 }
 
-function openSidebar() {
-    document.body.classList.add('sidebar-active');
-}
-
-function closeSidebar() {
-    document.body.classList.remove('sidebar-active');
-}
-
 function toggleDarkMode() {
-    document.body.classList.toggle('dark-mode');
-    localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+    darkMode = darkModeToggle.checked;
+    document.body.classList.toggle('dark-mode', darkMode);
+    localStorage.setItem('darkMode', darkMode);
 }
 
-function handleInputKeydown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
+function toggleTextToSpeech() {
+    textToSpeechEnabled = textToSpeechToggle.checked;
+    localStorage.setItem('textToSpeech', textToSpeechEnabled);
 }
 
-function adjustInputHeight() {
-    const textarea = this;
-    textarea.style.height = 'auto';
-    const newHeight = Math.min(textarea.scrollHeight, 120);
-    textarea.style.height = newHeight + 'px';
+function toggleBrowserTTS() {
+    useBrowserTTS = useBrowserTtsToggle.checked;
+    localStorage.setItem('useBrowserTTS', useBrowserTTS);
 }
 
-function saveModelPreference() {
-    const modelSelect = document.getElementById('model-select');
-    if (modelSelect) {
-        localStorage.setItem('model', modelSelect.value);
-    }
+function changeVoice() {
+    selectedVoice = voiceSelect.value;
+    localStorage.setItem('voice', selectedVoice);
 }
 
-function updateTemperatureValue() {
-    const temperatureValue = document.getElementById('temperature-value');
-    if (temperatureValue) {
-        temperatureValue.textContent = this.value;
-    }
-}
-
-function saveMaxTokens() {
-    const maxTokensInput = document.getElementById('max-tokens');
-    if (maxTokensInput) {
-        localStorage.setItem('maxTokens', maxTokensInput.value);
-    }
-}
-
-function saveTextToSpeechPreference() {
-    const textToSpeechToggle = document.getElementById('text-to-speech-toggle');
-    if (textToSpeechToggle) {
-        localStorage.setItem('textToSpeech', textToSpeechToggle.checked);
-    }
-}
-
-function showConfirmModal(message, confirmCallback) {
-    const modal = document.getElementById('confirm-modal');
-    const confirmMessage = document.getElementById('confirm-message');
+function changeModel() {
+    currentModel = modelSelect.value;
+    localStorage.setItem('model', currentModel);
     
-    if (modal && confirmMessage) {
-        confirmMessage.textContent = message;
-        modal.classList.add('active');
-        
-        // Store the callback to execute when confirmed
-        window.confirmCallback = confirmCallback;
-    }
-}
-
-function handleConfirmation() {
-    if (window.confirmCallback) {
-        window.confirmCallback();
-        closeConfirmModal();
-    }
-}
-
-function closeConfirmModal() {
-    const modal = document.getElementById('confirm-modal');
-    if (modal) {
-        modal.classList.remove('active');
-    }
-}
-
-function showToast(message, type = 'info') {
-    const toastContainer = document.getElementById('toast-container');
-    if (!toastContainer) return;
-    
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    
-    let icon = '';
-    switch (type) {
-        case 'success':
-            icon = '<i class="fas fa-check-circle"></i>';
-            break;
-        case 'error':
-            icon = '<i class="fas fa-exclamation-circle"></i>';
-            break;
-        default:
-            icon = '<i class="fas fa-info-circle"></i>';
+    // Show information about the selected model
+    let modelInfo = '';
+    if (currentModel.includes('gemini')) {
+        modelInfo = 'استخدام نموذج Gemini من Google';
+    } else if (currentModel.includes('claude')) {
+        modelInfo = 'استخدام نموذج Claude من Anthropic';
+    } else if (currentModel.includes('gpt-4')) {
+        modelInfo = 'استخدام نموذج GPT-4 من OpenAI';
+    } else {
+        modelInfo = 'استخدام نموذج ' + currentModel;
     }
     
-    toast.innerHTML = `${icon}<span>${message}</span>`;
-    toastContainer.appendChild(toast);
-    
-    // Remove toast after 3 seconds
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
+    showToast(modelInfo, 'info');
 }
 
-function fetchConversations() {
-    fetch('/api/conversations')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('فشل في جلب المحادثات');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                renderConversationsList(data.conversations);
-                
-                // If no active conversation, load the most recent one
-                if (!currentConversationId && data.conversations.length > 0) {
-                    loadConversation(data.conversations[0].id);
-                }
-            } else {
-                showToast('فشل في جلب المحادثات: ' + data.error, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching conversations:', error);
-            showToast('حدث خطأ أثناء جلب المحادثات', 'error');
-        });
+function updateTemperature() {
+    currentTemperature = parseFloat(temperatureSlider.value);
+    temperatureValue.textContent = currentTemperature;
+    localStorage.setItem('temperature', currentTemperature);
 }
 
-function renderConversationsList(conversations) {
-    const conversationsList = document.getElementById('conversations-list');
-    if (!conversationsList) return;
-    
-    // Clear the list
-    conversationsList.innerHTML = '';
-    
-    if (conversations.length === 0) {
-        conversationsList.innerHTML = '<div class="empty-conversations">لا توجد محادثات سابقة</div>';
+function updateMaxTokens() {
+    currentMaxTokens = parseInt(maxTokensInput.value);
+    localStorage.setItem('maxTokens', currentMaxTokens);
+}
+
+function initSpeechRecognition() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        micButton.style.display = 'none';
         return;
     }
     
-    // Add conversations to the list
-    conversations.forEach(conversation => {
-        const conversationItem = document.createElement('div');
-        conversationItem.className = 'conversation-item';
-        if (conversation.id === currentConversationId) {
-            conversationItem.classList.add('active');
-        }
-        
-        // Format date
-        const date = new Date(conversation.updated_at);
-        const formattedDate = formatDate(date);
-        
-        conversationItem.innerHTML = `
-            <div class="conversation-info" data-id="${conversation.id}">
-                <div class="conversation-title">${conversation.title}</div>
-                <div class="conversation-date">${formattedDate}</div>
-            </div>
-            <button class="conversation-delete" data-id="${conversation.id}">
-                <i class="fas fa-trash"></i>
-            </button>
-        `;
-        
-        conversationsList.appendChild(conversationItem);
-        
-        // Add click event for loading the conversation
-        const conversationInfo = conversationItem.querySelector('.conversation-info');
-        conversationInfo.addEventListener('click', function() {
-            loadConversation(this.dataset.id);
-            closeSidebar();
-        });
-        
-        // Add click event for deleting the conversation
-        const deleteButton = conversationItem.querySelector('.conversation-delete');
-        deleteButton.addEventListener('click', function(e) {
-            e.stopPropagation();
-            const convId = this.dataset.id;
-            showConfirmModal('هل أنت متأكد من رغبتك في حذف هذه المحادثة؟', () => deleteConversation(convId));
-        });
-    });
-}
-
-function loadConversation(conversationId) {
-    fetch(`/api/conversations/${conversationId}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('فشل في جلب المحادثة');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                // Set current conversation
-                currentConversationId = conversationId;
-                
-                // Clear messages area
-                const messagesContainer = document.getElementById('messages');
-                if (messagesContainer) {
-                    messagesContainer.innerHTML = '';
-                }
-                
-                // Add messages to the UI
-                if (data.conversation.messages.length > 0) {
-                    data.conversation.messages.forEach(message => {
-                        addMessageToUI(message.role, message.content, new Date(message.created_at));
-                    });
-                    
-                    // Scroll to bottom
-                    scrollToBottom();
-                } else {
-                    // Show welcome message if conversation is empty
-                    displayWelcomeMessage();
-                }
-                
-                // Update active conversation in sidebar
-                updateActiveConversation(conversationId);
-            } else {
-                showToast('فشل في جلب المحادثة: ' + data.error, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error loading conversation:', error);
-            showToast('حدث خطأ أثناء جلب المحادثة', 'error');
-        });
-}
-
-function updateActiveConversation(conversationId) {
-    // Update active class in sidebar
-    const conversationItems = document.querySelectorAll('.conversation-item');
-    conversationItems.forEach(item => {
-        const infoElement = item.querySelector('.conversation-info');
-        if (infoElement && infoElement.dataset.id === conversationId) {
-            item.classList.add('active');
-        } else {
-            item.classList.remove('active');
-        }
-    });
-}
-
-function createNewConversation() {
-    fetch('/api/conversations', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('فشل في إنشاء محادثة جديدة');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                // Set current conversation to the new one
-                currentConversationId = data.conversation.id;
-                
-                // Clear messages area and show welcome message
-                const messagesContainer = document.getElementById('messages');
-                if (messagesContainer) {
-                    messagesContainer.innerHTML = '';
-                    displayWelcomeMessage();
-                }
-                
-                // Refresh conversations list
-                fetchConversations();
-                
-                showToast('تم إنشاء محادثة جديدة', 'success');
-            } else {
-                showToast('فشل في إنشاء محادثة جديدة: ' + data.error, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error creating new conversation:', error);
-            showToast('حدث خطأ أثناء إنشاء محادثة جديدة', 'error');
-        });
-}
-
-function deleteConversation(conversationId) {
-    fetch(`/api/conversations/${conversationId}`, {
-        method: 'DELETE'
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('فشل في حذف المحادثة');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                showToast('تم حذف المحادثة بنجاح', 'success');
-                
-                // If the deleted conversation is the current one, create a new one
-                if (conversationId === currentConversationId) {
-                    createNewConversation();
-                }
-                
-                // Refresh conversations list
-                fetchConversations();
-            } else {
-                showToast('فشل في حذف المحادثة: ' + data.error, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting conversation:', error);
-            showToast('حدث خطأ أثناء حذف المحادثة', 'error');
-        });
-}
-
-function clearCurrentConversation() {
-    if (!currentConversationId) {
-        createNewConversation();
-        return;
-    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    speechRecognition = new SpeechRecognition();
+    speechRecognition.continuous = false;
+    speechRecognition.interimResults = false;
+    speechRecognition.lang = 'ar-SA'; // Arabic language
     
-    fetch(`/api/conversations/${currentConversationId}/clear`, {
-        method: 'POST'
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('فشل في مسح المحادثة');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                showToast('تم مسح المحادثة بنجاح', 'success');
-                
-                // Clear messages area and show welcome message
-                const messagesContainer = document.getElementById('messages');
-                if (messagesContainer) {
-                    messagesContainer.innerHTML = '';
-                    displayWelcomeMessage();
-                }
-                
-                // Refresh conversations list
-                fetchConversations();
-            } else {
-                showToast('فشل في مسح المحادثة: ' + data.error, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error clearing conversation:', error);
-            showToast('حدث خطأ أثناء مسح المحادثة', 'error');
-        });
+    speechRecognition.onstart = () => {
+        isRecording = true;
+        micButton.classList.add('recording');
+        showToast('جارٍ الاستماع...', 'info');
+    };
+    
+    speechRecognition.onend = () => {
+        isRecording = false;
+        micButton.classList.remove('recording');
+    };
+    
+    speechRecognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        messageInput.value = transcript;
+        autoResizeInput();
+    };
+    
+    speechRecognition.onerror = (event) => {
+        isRecording = false;
+        micButton.classList.remove('recording');
+        showToast('حدث خطأ في التعرف على الصوت', 'error');
+        console.error('Speech recognition error', event.error);
+    };
+}
+
+function toggleRecording() {
+    if (isRecording) {
+        speechRecognition.stop();
+    } else {
+        speechRecognition.start();
+    }
 }
 
 function sendMessage() {
-    const messageInput = document.getElementById('message-input');
     const message = messageInput.value.trim();
-    
-    if (!message) return;
+    if (!message || isGeneratingResponse) return;
     
     // Clear input
     messageInput.value = '';
-    messageInput.style.height = 'auto';
+    autoResizeInput();
     
-    // Focus back on input
-    messageInput.focus();
-    
-    // Add message to UI immediately
-    const userMessageTimestamp = new Date();
-    addMessageToUI('user', message, userMessageTimestamp);
+    // Add user message to UI
+    addMessageToUI('user', message);
     
     // Show typing indicator
     showTypingIndicator();
     
-    // Scroll to bottom
-    scrollToBottom();
+    // Set flag to prevent multiple requests
+    isGeneratingResponse = true;
     
-    // Get current settings
-    const model = getSelectedModel();
-    const temperature = getTemperature();
-    const maxTokens = getMaxTokens();
-    
-    // If no current conversation, use 'new'
-    const conversationId = currentConversationId || 'new';
-    
-    // Check if text-to-speech is enabled
-    const voice_enabled = document.getElementById('text-to-speech-toggle') && 
-                          document.getElementById('text-to-speech-toggle').checked;
-    
-    // Get selected voice if available
-    const voice_id = document.getElementById('voice-select') ? 
-                     document.getElementById('voice-select').value : 
-                     'EXAVITQu4vr4xnSDxMaL';
-    
-    // Send message to API
-    fetch(`/api/conversations/${conversationId}/messages`, {
+    // Send to backend API
+    fetch('/api/chat', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            message,
-            model,
-            temperature,
-            max_tokens: maxTokens,
-            voice_enabled,
-            voice_id
-        })
+            message: message,
+            conversation_id: currentConversationId,
+            model: currentModel,
+            temperature: currentTemperature,
+            max_tokens: currentMaxTokens
+        }),
     })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('فشل في إرسال الرسالة');
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Remove typing indicator
-            hideTypingIndicator();
-            
-            if (data.success) {
-                // If this was a new conversation, update the ID
-                if (!currentConversationId || currentConversationId === 'new') {
-                    currentConversationId = data.conversation_id;
-                    fetchConversations(); // Refresh the list to show the new conversation
-                }
-                
-                // Add assistant response to UI
-                const assistantMessage = data.messages[1]; // Second message is the assistant's response
-                addMessageToUI('assistant', assistantMessage.content, new Date(assistantMessage.created_at));
-                
-                // Check if we have audio data from ElevenLabs
-                if (data.audio) {
-                    // Play audio from ElevenLabs
-                    playAudioFromBase64(data.audio);
-                } else {
-                    // Fallback to browser's speech synthesis
-                    speakText(assistantMessage.content);
-                }
-                
-                // Scroll to bottom
-                scrollToBottom();
-            } else {
-                showToast('فشل في إرسال الرسالة: ' + data.error, 'error');
-                
-                // Add error message
-                addMessageToUI('assistant', 'عذراً، حدث خطأ في معالجة رسالتك. يرجى المحاولة مرة أخرى.', new Date());
-            }
-        })
-        .catch(error => {
-            // Remove typing indicator
-            hideTypingIndicator();
-            
-            console.error('Error sending message:', error);
-            showToast('حدث خطأ أثناء إرسال الرسالة', 'error');
-            
-            // Add error message
-            addMessageToUI('assistant', 'عذراً، حدث خطأ في الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.', new Date());
-            
-            // Scroll to bottom
-            scrollToBottom();
-        });
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Remove typing indicator
+        removeTypingIndicator();
+        
+        // Add assistant response to UI
+        addMessageToUI('assistant', data.message);
+        
+        // Update conversation ID if new
+        if (!currentConversationId) {
+            currentConversationId = data.conversation_id;
+            loadConversations(); // Refresh the conversations list
+        }
+        
+        // Text to speech if enabled
+        if (textToSpeechEnabled) {
+            speakText(data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error sending message:', error);
+        removeTypingIndicator();
+        showToast('حدث خطأ أثناء إرسال الرسالة', 'error');
+    })
+    .finally(() => {
+        isGeneratingResponse = false;
+    });
 }
 
-function getSelectedModel() {
-    const modelSelect = document.getElementById('model-select');
-    return modelSelect ? modelSelect.value : 'gemini-1.5-pro';
-}
-
-function getTemperature() {
-    const temperatureSlider = document.getElementById('temperature-slider');
-    return temperatureSlider ? parseFloat(temperatureSlider.value) : 0.7;
-}
-
-function getMaxTokens() {
-    const maxTokensInput = document.getElementById('max-tokens');
-    return maxTokensInput ? parseInt(maxTokensInput.value) : 2000;
-}
-
-function addMessageToUI(role, content, timestamp) {
-    const messagesContainer = document.getElementById('messages');
-    if (!messagesContainer) return;
+function addMessageToUI(role, content) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message-bubble ${role}`;
     
-    // Create message element
-    const messageElement = document.createElement('div');
-    messageElement.className = `message-bubble ${role}`;
+    // Create avatar
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    const avatarImg = document.createElement('img');
+    avatarImg.src = role === 'user' 
+        ? '/static/img/user-avatar.jpg' 
+        : '/static/img/yasmin-avatar.png';
+    avatar.appendChild(avatarImg);
     
-    // Create avatar based on role
-    const avatarSrc = role === 'user' ? 
-        '/static/img/user-avatar.jpg' : 
-        '/static/img/yasmin-avatar.png';
+    // Create message content
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
     
-    // Format timestamp
-    const formattedTime = formatTime(timestamp);
-    
-    // Handle markdown-like content
+    // Format message content with Markdown-like parsing
     const formattedContent = formatMessageContent(content);
+    messageContent.innerHTML = formattedContent;
     
-    // Construct message HTML
-    messageElement.innerHTML = `
-        <div class="message-avatar">
-            <img src="${avatarSrc}" alt="${role} avatar">
-        </div>
-        <div class="message-content">
-            ${formattedContent}
-            <div class="message-time">${formattedTime}</div>
-        </div>
-    `;
+    // Create time display
+    const timeElement = document.createElement('div');
+    timeElement.className = 'message-time';
+    const now = new Date();
+    timeElement.textContent = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
     
-    // Add action buttons for assistant messages
+    // Add message actions for assistant messages
+    let actionsDiv;
     if (role === 'assistant') {
-        const actionsDiv = document.createElement('div');
+        actionsDiv = document.createElement('div');
         actionsDiv.className = 'message-actions';
-        actionsDiv.innerHTML = `
-            <button class="message-action-btn copy-btn" title="نسخ الرسالة">
-                <i class="fas fa-copy"></i>
-            </button>
-            <button class="message-action-btn like-btn" title="إعجاب">
-                <i class="fas fa-heart"></i>
-            </button>
-            <button class="message-action-btn share-btn" title="مشاركة">
-                <i class="fas fa-share-alt"></i>
-            </button>
-        `;
         
-        // Add event listener for copy button
-        const copyBtn = actionsDiv.querySelector('.copy-btn');
-        copyBtn.addEventListener('click', function() {
-            const textToCopy = content;
-            navigator.clipboard.writeText(textToCopy).then(function() {
-                showToast('تم نسخ الرسالة بنجاح!', 'success');
-            }, function() {
-                showToast('فشل في نسخ الرسالة', 'error');
-            });
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'message-action-btn';
+        copyBtn.innerHTML = '<i class="far fa-copy"></i>';
+        copyBtn.title = 'نسخ';
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(content)
+                .then(() => showToast('تم نسخ النص', 'success'))
+                .catch(() => showToast('فشل نسخ النص', 'error'));
         });
         
-        // Add event listener for like button
-        const likeBtn = actionsDiv.querySelector('.like-btn');
-        likeBtn.addEventListener('click', function() {
-            this.classList.toggle('liked');
-            if(this.classList.contains('liked')) {
-                this.style.color = '#e74c3c';
-                showToast('أعجبتك هذه الرسالة', 'success');
-            } else {
-                this.style.color = '';
-                showToast('تم إلغاء الإعجاب', 'info');
-            }
+        const likeBtn = document.createElement('button');
+        likeBtn.className = 'message-action-btn';
+        likeBtn.innerHTML = '<i class="far fa-heart"></i>';
+        likeBtn.title = 'إعجاب';
+        likeBtn.addEventListener('click', (e) => {
+            e.currentTarget.classList.toggle('liked');
+            e.currentTarget.querySelector('i').classList.toggle('far');
+            e.currentTarget.querySelector('i').classList.toggle('fas');
         });
         
-        // Add event listener for share button
-        const shareBtn = actionsDiv.querySelector('.share-btn');
-        shareBtn.addEventListener('click', function() {
-            showToast('جاري مشاركة الرسالة...', 'info');
+        const speakBtn = document.createElement('button');
+        speakBtn.className = 'message-action-btn';
+        speakBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+        speakBtn.title = 'قراءة';
+        speakBtn.addEventListener('click', () => {
+            speakText(content);
         });
         
-        messageElement.appendChild(actionsDiv);
+        actionsDiv.appendChild(copyBtn);
+        actionsDiv.appendChild(likeBtn);
+        actionsDiv.appendChild(speakBtn);
     }
     
-    // Add message to container
-    messagesContainer.appendChild(messageElement);
+    // Assemble message
+    messageDiv.appendChild(role === 'user' ? avatar : document.createDocumentFragment());
+    messageDiv.appendChild(messageContent);
+    messageDiv.appendChild(role === 'assistant' ? avatar : document.createDocumentFragment());
+    
+    // Add time and actions
+    const messageContainer = document.createElement('div');
+    messageContainer.className = 'message-container';
+    messageContainer.appendChild(messageDiv);
+    
+    if (timeElement) {
+        messageContent.appendChild(timeElement);
+    }
+    
+    if (actionsDiv) {
+        messageContainer.appendChild(actionsDiv);
+    }
+    
+    messagesContainer.appendChild(messageContainer);
+    
+    // Scroll to bottom
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 function formatMessageContent(content) {
-    // Replace code blocks
-    let formatted = content.replace(/```([\s\S]*?)```/g, function(match, code) {
-        return `<pre>${escapeHtml(code)}</pre>`;
-    });
+    if (!content) return '';
     
-    // Replace inline code
-    formatted = formatted.replace(/`([^`]+)`/g, function(match, code) {
-        return `<code>${escapeHtml(code)}</code>`;
-    });
+    // Basic HTML escaping
+    let escaped = content
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
     
-    // Replace links
-    formatted = formatted.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+    // Code blocks
+    escaped = escaped.replace(/```([\s\S]*?)```/g, '<pre>$1</pre>');
     
-    // Replace line breaks with paragraphs
-    formatted = '<p>' + formatted.replace(/\n\n+/g, '</p><p>') + '</p>';
+    // Inline code
+    escaped = escaped.replace(/`([^`]+)`/g, '<code>$1</code>');
     
-    // Replace single line breaks
-    formatted = formatted.replace(/\n/g, '<br>');
+    // Bold text
+    escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     
-    return formatted;
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    // Italic text
+    escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // Line breaks
+    escaped = escaped.replace(/\n/g, '<br>');
+    
+    return escaped;
 }
 
 function showTypingIndicator() {
-    const messagesContainer = document.getElementById('messages');
-    if (!messagesContainer) return;
+    const typingIndicator = document.createElement('div');
+    typingIndicator.className = 'message-bubble assistant loading';
+    typingIndicator.id = 'typing-indicator';
     
-    // Remove any existing typing indicators
-    hideTypingIndicator();
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    const avatarImg = document.createElement('img');
+    avatarImg.src = '/static/img/yasmin-avatar.png';
+    avatar.appendChild(avatarImg);
     
-    // Create typing indicator
-    const typingElement = document.createElement('div');
-    typingElement.className = 'message-bubble assistant';
-    typingElement.id = 'typing-indicator';
-    
-    typingElement.innerHTML = `
-        <div class="message-avatar">
-            <img src="/static/img/yasmin-avatar.png" alt="Yasmin avatar">
-        </div>
-        <div class="message-content">
-            <div class="typing-indicator">
-                <span class="typing-dot"></span>
-                <span class="typing-dot"></span>
-                <span class="typing-dot"></span>
-            </div>
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    messageContent.innerHTML = `
+        <div class="typing-indicator">
+            <span></span>
+            <span></span>
+            <span></span>
         </div>
     `;
     
-    // Add to container
-    messagesContainer.appendChild(typingElement);
+    typingIndicator.appendChild(messageContent);
+    typingIndicator.appendChild(avatar);
     
-    // Scroll to bottom
-    scrollToBottom();
+    messagesContainer.appendChild(typingIndicator);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-function hideTypingIndicator() {
+function removeTypingIndicator() {
     const typingIndicator = document.getElementById('typing-indicator');
     if (typingIndicator) {
         typingIndicator.remove();
     }
 }
 
-function displayWelcomeMessage() {
-    const messagesContainer = document.getElementById('messages');
-    if (!messagesContainer) return;
+function speakText(text) {
+    if (useBrowserTTS) {
+        // Use browser's built-in TTS
+        if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'ar-SA';
+            window.speechSynthesis.speak(utterance);
+        } else {
+            console.error('Browser does not support speech synthesis');
+            showToast('المتصفح لا يدعم ميزة تحويل النص إلى كلام', 'error');
+        }
+    } else {
+        // Use ElevenLabs API
+        fetch('/api/text-to-speech', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                text: text,
+                voice_id: selectedVoice
+            }),
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Text-to-speech API error');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.audio) {
+                // Create and play audio from base64
+                const audio = new Audio('data:audio/mpeg;base64,' + data.audio);
+                audio.play();
+            }
+        })
+        .catch(error => {
+            console.error('Error in text-to-speech:', error);
+            showToast('فشل تحويل النص إلى كلام', 'error');
+            
+            // Fallback to browser TTS
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ar-SA';
+                window.speechSynthesis.speak(utterance);
+            }
+        });
+    }
+}
+
+function loadConversations() {
+    fetch('/api/conversations')
+    .then(response => response.json())
+    .then(data => {
+        conversationsList.innerHTML = '';
+        
+        if (data.conversations && data.conversations.length > 0) {
+            data.conversations.forEach(conversation => {
+                addConversationToList(conversation);
+            });
+        } else {
+            conversationsList.innerHTML = '<div class="empty-state">لا توجد محادثات سابقة</div>';
+        }
+    })
+    .catch(error => {
+        console.error('Error loading conversations:', error);
+        conversationsList.innerHTML = '<div class="empty-state">فشل تحميل المحادثات</div>';
+    });
+}
+
+function addConversationToList(conversation) {
+    const conversationItem = document.createElement('div');
+    conversationItem.className = 'conversation-item';
+    if (currentConversationId === conversation.id) {
+        conversationItem.classList.add('active');
+    }
     
-    const welcomeElement = document.createElement('div');
-    welcomeElement.className = 'welcome-container';
+    const date = new Date(conversation.last_updated);
+    const formattedDate = date.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
     
-    welcomeElement.innerHTML = `
-        <div class="welcome-avatar">
-            <img src="/static/img/yasmin-avatar.png" alt="Yasmin avatar">
+    conversationItem.innerHTML = `
+        <div class="conversation-info">
+            <div class="conversation-title">${conversation.title}</div>
+            <div class="conversation-date">${formattedDate}</div>
         </div>
-        <div class="welcome-message">
-            <h1>مرحباً بك في ياسمين!</h1>
-            <p>أنا مساعدك الذكي باللغة العربية. يمكنني الإجابة على أسئلتك، وتقديم المعلومات، والمساعدة في مختلف المهام.</p>
+        <button class="conversation-delete" title="حذف المحادثة">
+            <i class="fas fa-trash-alt"></i>
+        </button>
+    `;
+    
+    conversationItem.querySelector('.conversation-info').addEventListener('click', () => {
+        loadConversation(conversation.id);
+    });
+    
+    conversationItem.querySelector('.conversation-delete').addEventListener('click', (e) => {
+        e.stopPropagation();
+        showConfirmation('هل أنت متأكد من رغبتك في حذف هذه المحادثة؟', () => {
+            deleteConversation(conversation.id);
+        });
+    });
+    
+    conversationsList.appendChild(conversationItem);
+}
+
+function loadConversation(conversationId) {
+    fetch(`/api/conversations/${conversationId}`)
+    .then(response => response.json())
+    .then(data => {
+        currentConversationId = conversationId;
+        
+        // Update active conversation in the list
+        document.querySelectorAll('.conversation-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        
+        document.querySelectorAll('.conversation-item').forEach(item => {
+            if (item.querySelector('.conversation-title').textContent === data.conversation.title) {
+                item.classList.add('active');
+            }
+        });
+        
+        // Clear current messages
+        messagesContainer.innerHTML = '';
+        
+        // Add messages to UI
+        if (data.messages && data.messages.length > 0) {
+            data.messages.forEach(message => {
+                addMessageToUI(message.role, message.content);
+            });
+        }
+        
+        // Close sidebar on mobile
+        if (window.innerWidth < 768) {
+            toggleSidebar();
+        }
+    })
+    .catch(error => {
+        console.error('Error loading conversation:', error);
+        showToast('فشل تحميل المحادثة', 'error');
+    });
+}
+
+function startNewConversation() {
+    currentConversationId = null;
+    messagesContainer.innerHTML = '';
+    displayWelcomeMessage();
+    
+    // Close sidebar on mobile
+    if (window.innerWidth < 768) {
+        toggleSidebar();
+    }
+}
+
+function clearConversation() {
+    if (!currentConversationId) {
+        showToast('لا توجد محادثة لمسحها', 'error');
+        return;
+    }
+    
+    fetch(`/api/conversations/${currentConversationId}/messages`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            messagesContainer.innerHTML = '';
+            displayWelcomeMessage();
+            showToast('تم مسح المحادثة بنجاح', 'success');
+        } else {
+            throw new Error('Failed to clear conversation');
+        }
+    })
+    .catch(error => {
+        console.error('Error clearing conversation:', error);
+        showToast('فشل مسح المحادثة', 'error');
+    });
+}
+
+function deleteConversation(conversationId) {
+    fetch(`/api/conversations/${conversationId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            loadConversations();
+            
+            if (currentConversationId === conversationId) {
+                currentConversationId = null;
+                messagesContainer.innerHTML = '';
+                displayWelcomeMessage();
+            }
+            
+            showToast('تم حذف المحادثة بنجاح', 'success');
+        } else {
+            throw new Error('Failed to delete conversation');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting conversation:', error);
+        showToast('فشل حذف المحادثة', 'error');
+    });
+}
+
+function displayWelcomeMessage() {
+    const welcomeDiv = document.createElement('div');
+    welcomeDiv.className = 'welcome-container';
+    welcomeDiv.innerHTML = `
+        <div class="message-bubble assistant">
+            <div class="message-content">
+                <p>أهلاً بك في ياسمين! أنا مساعدك الذكي باللغة العربية. كيف يمكنني مساعدتك اليوم؟</p>
+            </div>
+            <div class="message-avatar">
+                <img src="/static/img/yasmin-avatar.webp" alt="Yasmin">
+            </div>
         </div>
         
         <div class="welcome-suggestions">
-            <button class="suggestion-button" data-text="ما هي أبرز الأخبار العالمية اليوم؟">
-                ما هي أبرز الأخبار العالمية اليوم؟
+            <button class="suggestion-button">
+                <i class="fas fa-book"></i>
+                اكتب لي فقرة عن تاريخ اللغة العربية
             </button>
-            <button class="suggestion-button" data-text="اكتب لي قصة قصيرة عن الذكاء الاصطناعي">
-                اكتب لي قصة قصيرة عن الذكاء الاصطناعي
+            <button class="suggestion-button">
+                <i class="fas fa-lightbulb"></i>
+                اقترح أفكار لمشروع برمجي
             </button>
-            <button class="suggestion-button" data-text="أحتاج صورة في رسم البورتريه. إنه محيط.">
-                أحتاج صورة في رسم البورتريه. إنه محيط.
+            <button class="suggestion-button">
+                <i class="fas fa-code"></i>
+                اكتب كود بايثون لتحليل بيانات
+            </button>
+            <button class="suggestion-button">
+                <i class="fas fa-image"></i>
+                صف لي كيف أستخدم ميزة توليد الصور
             </button>
         </div>
     `;
     
-    messagesContainer.appendChild(welcomeElement);
+    messagesContainer.appendChild(welcomeDiv);
     
     // Add event listeners to suggestion buttons
-    const suggestionButtons = welcomeElement.querySelectorAll('.suggestion-button');
-    suggestionButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const text = this.dataset.text;
-            const messageInput = document.getElementById('message-input');
-            if (messageInput) {
-                messageInput.value = text;
-                sendMessage();
-            }
+    welcomeDiv.querySelectorAll('.suggestion-button').forEach(button => {
+        button.addEventListener('click', () => {
+            messageInput.value = button.textContent.trim();
+            sendMessage();
         });
     });
 }
 
-function scrollToBottom() {
-    const messagesContainer = document.querySelector('.messages-container');
-    if (messagesContainer) {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-}
-
-function formatTime(date) {
-    return date.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatDate(date) {
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
+function showConfirmation(message, actionCallback) {
+    confirmMessage.textContent = message;
     
-    // Today
-    if (date.toDateString() === now.toDateString()) {
-        return 'اليوم ' + date.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+    // Set the action callback
+    confirmAction.onclick = () => {
+        actionCallback();
+        confirmModal.classList.remove('active');
+    };
+    
+    confirmModal.classList.add('active');
+}
+
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toast-container');
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    let icon;
+    switch (type) {
+        case 'success':
+            icon = 'fas fa-check-circle';
+            break;
+        case 'error':
+            icon = 'fas fa-exclamation-circle';
+            break;
+        default:
+            icon = 'fas fa-info-circle';
     }
-    // Yesterday
-    else if (date.toDateString() === yesterday.toDateString()) {
-        return 'الأمس ' + date.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+    
+    toast.innerHTML = `
+        <i class="${icon}"></i>
+        <span>${message}</span>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Remove toast after animation completes
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+function exportChat() {
+    if (!currentConversationId) {
+        showToast('لا توجد محادثة للتصدير', 'error');
+        return;
     }
-    // Other days
-    else {
-        return date.toLocaleDateString('ar-SA', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
+    
+    fetch(`/api/conversations/${currentConversationId}`)
+    .then(response => response.json())
+    .then(data => {
+        let chatText = `# ${data.conversation.title}\n`;
+        chatText += `# ${new Date(data.conversation.created_at).toLocaleString('ar-SA')}\n\n`;
+        
+        data.messages.forEach(message => {
+            const role = message.role === 'user' ? 'أنت' : 'ياسمين';
+            chatText += `## ${role} (${new Date(message.timestamp).toLocaleTimeString('ar-SA')})\n`;
+            chatText += message.content + '\n\n';
         });
-    }
-}
-
-function adjustUIForScreenSize() {
-    // Handle mobile-specific UI adjustments
-    const isMobile = window.innerWidth < 768;
-    
-    if (isMobile) {
-        // Any mobile-specific adjustments can be made here
-    } else {
-        // Any desktop-specific adjustments can be made here
-        closeSidebar();
-    }
+        
+        // Create and download file
+        const blob = new Blob([chatText], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `محادثة_ياسمين_${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showToast('تم تصدير المحادثة بنجاح', 'success');
+    })
+    .catch(error => {
+        console.error('Error exporting chat:', error);
+        showToast('فشل تصدير المحادثة', 'error');
+    });
 }
