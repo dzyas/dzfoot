@@ -1,5 +1,14 @@
 from datetime import datetime, timezone
 from app import db
+from flask_login import UserMixin
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(64), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256))
+    name = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 class Conversation(db.Model):
     """Model for storing conversation metadata"""
