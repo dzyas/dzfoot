@@ -13,7 +13,8 @@ opencv-python
 Pillow
 eventlet
 Flask-Login
-Flask-SocketIO  # تم إضافة هذا السطر
+Flask-SocketIO
+google-generativeai  # تم إضافة هذا السطر
 
 # إذا كانت مكتبة openai_service المحلية تعتمد على مكتبة openai الرسمية، قم بإزالة التعليق من السطر التالي
 # openai
