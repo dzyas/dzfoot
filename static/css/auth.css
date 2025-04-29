@@ -1,0 +1,210 @@
+/* Authentication Pages Style */
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 80px);
+    background-color: #f5f7fa;
+    padding: 20px;
+    direction: rtl;
+}
+
+.auth-card {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 420px;
+    padding: 30px;
+    text-align: center;
+}
+
+.auth-logo {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.auth-card h2 {
+    color: #4a6fa5;
+    margin-bottom: 25px;
+    font-size: 1.8rem;
+}
+
+.auth-form {
+    text-align: right;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #555;
+    font-weight: 500;
+}
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="password"] {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="email"]:focus,
+.form-group input[type="password"]:focus {
+    border-color: #4a6fa5;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(74, 111, 165, 0.2);
+}
+
+.form-group.remember-me {
+    display: flex;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.form-group.remember-me input {
+    margin-left: 10px;
+}
+
+.required {
+    color: #e74c3c;
+    margin-right: 4px;
+}
+
+.auth-button {
+    width: 100%;
+    background-color: #4a6fa5;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.auth-button:hover {
+    background-color: #3a5c8a;
+}
+
+.auth-links {
+    margin-top: 25px;
+    font-size: 14px;
+    color: #666;
+}
+
+.auth-links a {
+    color: #4a6fa5;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.auth-links a:hover {
+    text-decoration: underline;
+}
+
+.alert {
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    border-right: 4px solid;
+    text-align: right;
+}
+
+.alert-error {
+    background-color: #fde8e8;
+    border-color: #e74c3c;
+    color: #c0392b;
+}
+
+.alert-success {
+    background-color: #e8f8f0;
+    border-color: #2ecc71;
+    color: #27ae60;
+}
+
+.alert-info {
+    background-color: #e8f4fd;
+    border-color: #3498db;
+    color: #2980b9;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .auth-container {
+        background-color: #0d1117;
+    }
+    
+    .auth-card {
+        background-color: #161b22;
+    }
+    
+    .auth-card h2 {
+        color: #58a6ff;
+    }
+    
+    .form-group label {
+        color: #c9d1d9;
+    }
+    
+    .form-group input[type="text"],
+    .form-group input[type="email"],
+    .form-group input[type="password"] {
+        background-color: #21262d;
+        border-color: #30363d;
+        color: #c9d1d9;
+    }
+    
+    .form-group input[type="text"]:focus,
+    .form-group input[type="email"]:focus,
+    .form-group input[type="password"]:focus {
+        border-color: #58a6ff;
+        box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+    }
+    
+    .auth-button {
+        background-color: #58a6ff;
+    }
+    
+    .auth-button:hover {
+        background-color: #79b8ff;
+    }
+    
+    .auth-links {
+        color: #8b949e;
+    }
+    
+    .auth-links a {
+        color: #58a6ff;
+    }
+    
+    .alert-error {
+        background-color: rgba(231, 76, 60, 0.1);
+        border-color: #e74c3c;
+        color: #f87171;
+    }
+    
+    .alert-success {
+        background-color: rgba(46, 204, 113, 0.1);
+        border-color: #2ecc71;
+        color: #34d399;
+    }
+    
+    .alert-info {
+        background-color: rgba(52, 152, 219, 0.1);
+        border-color: #3498db;
+        color: #60a5fa;
+    }
+}

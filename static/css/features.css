@@ -1,0 +1,246 @@
+/* Features Hub Styles */
+:root {
+    --primary-color: #4a6fa5;
+    --secondary-color: #6c757d;
+    --accent-color: #ff8c00;
+    --light-color: #f8f9fa;
+    --dark-color: #343a40;
+    --success-color: #28a745;
+    --info-color: #17a2b8;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --border-radius: 8px;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --transition: all 0.3s ease;
+}
+
+.features-hub {
+    padding: 60px 0;
+    background-color: #f5f7fa;
+    min-height: calc(100vh - 160px);
+}
+
+.welcome-message {
+    display: flex;
+    align-items: center;
+    margin-bottom: 40px;
+    background-color: white;
+    border-radius: var(--border-radius);
+    padding: 30px;
+    box-shadow: var(--shadow);
+}
+
+.welcome-message .avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin-left: 20px;
+}
+
+.welcome-text h1 {
+    margin-bottom: 10px;
+    color: var(--dark-color);
+    font-size: 2rem;
+}
+
+.welcome-text .user-name {
+    color: var(--primary-color);
+    font-weight: 700;
+}
+
+.welcome-text p {
+    color: var(--secondary-color);
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+}
+
+.feature-card {
+    display: flex;
+    align-items: center;
+    background-color: white;
+    border-radius: var(--border-radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    transition: var(--transition);
+    text-decoration: none;
+    color: var(--dark-color);
+    position: relative;
+    overflow: hidden;
+}
+
+.feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 5px;
+    height: 100%;
+    background-color: var(--primary-color);
+    opacity: 0;
+    transition: var(--transition);
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.feature-card:hover::before {
+    opacity: 1;
+}
+
+.feature-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: rgba(74, 111, 165, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 15px;
+    flex-shrink: 0;
+}
+
+.feature-icon i {
+    font-size: 24px;
+    color: var(--primary-color);
+}
+
+.feature-info {
+    flex: 1;
+}
+
+.feature-card h3 {
+    font-size: 1.2rem;
+    margin-bottom: 5px;
+    color: var(--dark-color);
+}
+
+.feature-card p {
+    font-size: 0.9rem;
+    color: var(--secondary-color);
+    margin: 0;
+}
+
+.feature-arrow {
+    margin-right: 10px;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: var(--transition);
+}
+
+.feature-arrow i {
+    font-size: 18px;
+    color: var(--primary-color);
+}
+
+.feature-card:hover .feature-arrow {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* Animation for cards */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.feature-card {
+    animation: fadeIn 0.5s ease forwards;
+    opacity: 0;
+}
+
+/* Staggered animation for each card */
+.feature-card:nth-child(1) { animation-delay: 0.1s; }
+.feature-card:nth-child(2) { animation-delay: 0.2s; }
+.feature-card:nth-child(3) { animation-delay: 0.3s; }
+.feature-card:nth-child(4) { animation-delay: 0.4s; }
+.feature-card:nth-child(5) { animation-delay: 0.5s; }
+.feature-card:nth-child(6) { animation-delay: 0.6s; }
+
+/* Responsive Styles */
+@media (max-width: 992px) {
+    .features-grid {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .welcome-message {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .welcome-message .avatar {
+        margin-left: 0;
+        margin-bottom: 20px;
+    }
+    
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .features-hub {
+        background-color: #0d1117;
+    }
+    
+    .welcome-message {
+        background-color: #161b22;
+    }
+    
+    .welcome-text h1 {
+        color: #f0f6fc;
+    }
+    
+    .welcome-text .user-name {
+        color: #58a6ff;
+    }
+    
+    .welcome-text p {
+        color: #c9d1d9;
+    }
+    
+    .feature-card {
+        background-color: #161b22;
+        color: #f0f6fc;
+    }
+    
+    .feature-card::before {
+        background-color: #58a6ff;
+    }
+    
+    .feature-icon {
+        background-color: rgba(88, 166, 255, 0.1);
+    }
+    
+    .feature-icon i {
+        color: #58a6ff;
+    }
+    
+    .feature-card h3 {
+        color: #f0f6fc;
+    }
+    
+    .feature-card p {
+        color: #8b949e;
+    }
+    
+    .feature-arrow i {
+        color: #58a6ff;
+    }
+}
