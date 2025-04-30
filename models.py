@@ -1,4 +1,3 @@
---- START OF FILE models.py ---
 
 from datetime import datetime, timezone
 from app import db # تأكد من أن 'app' متاح للاستيراد
@@ -82,5 +81,3 @@ class Message(db.Model):
     
     def __repr__(self):
         return f'<Message {self.id}: {self.role} (Conv: {self.conversation_id})>'
-
---- END OF FILE models.py ---
