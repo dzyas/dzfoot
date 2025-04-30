@@ -19,3 +19,4 @@ anthropic
 elevenlabs
 openai
 python-magic
+python create_tables.py
